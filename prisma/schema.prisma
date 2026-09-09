@@ -1,0 +1,75 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Account {
+  id            String         @id @default(cuid())
+  balance       Decimal        @db.Decimal(18, 2)
+  baseRiskPct   Decimal        @db.Decimal(5, 2)
+  feeRatePct    Decimal        @db.Decimal(6, 4) // напр. 0.0600 = 0.06%
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+  trades        Trade[]
+  balanceEvents BalanceEvent[]
+}
+
+model BalanceEvent {
+  id             String   @id @default(cuid())
+  accountId      String
+  account        Account  @relation(fields: [accountId], references: [id])
+  type           String // "deposit" | "withdrawal" | "trade_settlement" | "manual_adjustment"
+  amount         Decimal  @db.Decimal(18, 2) // знак: + пополнение/прибыль, - снятие/убыток
+  relatedTradeId String?
+  note           String?
+  createdAt      DateTime @default(now())
+
+  @@index([accountId])
+}
+
+model Trade {
+  id             String    @id @default(cuid())
+  accountId      String
+  account        Account   @relation(fields: [accountId], references: [id])
+  pair           String
+  direction      Int // 1 = long, -1 = short
+  entryPrice     Decimal   @db.Decimal(18, 8)
+  stopLoss       Decimal   @db.Decimal(18, 8)
+  riskPct        Decimal   @db.Decimal(5, 2)
+  depositAtEntry Decimal   @db.Decimal(18, 2) // снапшот баланса на момент открытия
+  feeRateAtEntry Decimal   @db.Decimal(6, 4) // снапшот ставки комиссии
+  riskAmount     Decimal   @db.Decimal(18, 2) // = depositAtEntry * riskPct / 100
+  positionSize   Decimal   @db.Decimal(18, 2)
+  tvLink         String?
+  status         String    @default("open") // "open" | "closed"
+  createdAt      DateTime  @default(now())
+  closedAt       DateTime?
+
+  // заполняется при закрытии, null пока сделка открыта
+  grossPnL           Decimal? @db.Decimal(18, 2)
+  totalFees          Decimal? @db.Decimal(18, 2)
+  netPnL             Decimal? @db.Decimal(18, 2)
+  netPnlPctOfDeposit Decimal? @db.Decimal(8, 4)
+  realizedAvgExit    Decimal? @db.Decimal(18, 8)
+  realizedRR         Decimal? @db.Decimal(8, 4)
+
+  fixes Fix[]
+
+  @@index([accountId, status])
+}
+
+model Fix {
+  id        String   @id @default(cuid())
+  tradeId   String
+  trade     Trade    @relation(fields: [tradeId], references: [id], onDelete: Cascade)
+  price     Decimal  @db.Decimal(18, 8)
+  sizePct   Decimal  @db.Decimal(5, 2) // % от исходного объёма позиции
+  type      String // "manual" | "stop"
+  createdAt DateTime @default(now())
+
+  @@index([tradeId])
+}
