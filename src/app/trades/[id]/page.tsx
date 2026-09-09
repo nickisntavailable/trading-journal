@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { AppShell } from "@/components/app-shell";
 import { DirectionTag } from "@/components/direction-tag";
 import { ProgressBar } from "@/components/progress-bar";
+import { EditTradeForm } from "@/app/trades/[id]/edit-trade-form";
 import { FixesPanel } from "@/app/trades/[id]/fixes-panel";
 import { getAccount } from "@/lib/account";
 import { dateTime, money, pct, price, rMultiple, signedMoney, signedPct } from "@/lib/format";
@@ -55,6 +56,12 @@ export default async function TradePage({
         <Param label="Риск" value={`${money(trade.riskAmount)} · ${pct(trade.riskPct)}`} />
         <Param label="Размер позиции" value={money(trade.positionSize)} />
       </section>
+
+      {trade.status === "open" ? (
+        <section className="border-b border-rule py-4">
+          <EditTradeForm trade={trade} hasFixes={fixes.length > 0} />
+        </section>
+      ) : null}
 
       <section className="border-b border-rule py-4">
         <div className="flex items-baseline justify-between">
