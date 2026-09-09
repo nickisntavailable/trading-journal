@@ -61,8 +61,14 @@ export function NewTradeForm({ account }: { account: AccountDTO }) {
     // Всё подставленное видно в списке кандидатов и правится одним кликом.
     if (result.direction) setDirection(result.direction === "short" ? -1 : 1);
 
-    const markedEntry = result.levels.find((level) => level.role === "entry");
+    // Плашка текущей цены на шкале подсвечена так же, как плашка входа, и модель
+    // иногда помечает ролью "entry" обе. Текущую цену как вход не берём: если
+    // она действительно нужна, пользователь подставит её кнопкой.
+    const entryLevels = result.levels.filter((level) => level.role === "entry");
+    const markedEntry =
+      entryLevels.find((level) => level.price !== result.currentPrice) ?? null;
     const markedStop = result.levels.find((level) => level.role === "stop");
+
     if (markedEntry) setEntryPrice(String(markedEntry.price));
     if (markedStop) setStopLoss(String(markedStop.price));
   }
