@@ -124,9 +124,8 @@ export function ScreenshotBlock({
 }
 
 /**
- * Кандидаты со скриншота. Уровни, которые модель прочитала как помеченные на
- * графике, уже подставлены в поля и отмечены здесь галочкой; любой другой
- * уровень переносится в вход или стоп одним кликом.
+ * Кандидаты со скриншота. Когда вход и стоп уже определены, список сворачивается
+ * в одну строку — разворачивается кликом, если модель ошиблась с ролями.
  */
 export function ScreenshotCandidates({
   parsed,
@@ -141,11 +140,15 @@ export function ScreenshotCandidates({
   onPickEntry: (value: number) => void;
   onPickStop: (value: number) => void;
 }) {
+  // null — режим по умолчанию: свёрнуто, когда обе цены уже есть
+  const [manualOpen, setManualOpen] = useState<boolean | null>(null);
+
   if (!parsed) return null;
 
   const entry = Number(entryPrice);
-  const hasEntry = entryPrice.trim().length > 0 && Number.isFinite(entry) && entry > 0;
   const stop = Number(stopLoss);
+  const hasEntry = entryPrice.trim().length > 0 && Number.isFinite(entry) && entry > 0;
+  const hasStop = stopLoss.trim().length > 0 && Number.isFinite(stop) && stop > 0;
 
   const rows: { key: string; label: string; value: number }[] = [];
   if (parsed.currentPrice !== null) {
@@ -169,7 +172,27 @@ export function ScreenshotCandidates({
     );
   }
 
+  const resolved = hasEntry && hasStop;
+  const open = manualOpen ?? !resolved;
   const marked = parsed.levels.some((level) => level.role !== null);
+
+  if (!open) {
+    return (
+      <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1 border-b border-rule py-3">
+        <p className="text-[11px] text-ink-soft">
+          Со скриншота: вход <span className="num text-ink">{fmtPrice(entry)}</span>, стоп{" "}
+          <span className="num text-ink">{fmtPrice(stop)}</span>
+        </p>
+        <button
+          type="button"
+          onClick={() => setManualOpen(true)}
+          className="text-[11px] text-ink-soft underline underline-offset-2 hover:text-ink"
+        >
+          показать уровни ({rows.length})
+        </button>
+      </div>
+    );
+  }
 
   return (
     <div className="border-b border-rule py-4">
@@ -179,16 +202,27 @@ export function ScreenshotCandidates({
             ? "Со скриншота — помеченное подставлено, поправь кнопками"
             : "Со скриншота — подставь в нужное поле"}
         </p>
-        {parsed.timeframe ? (
-          <p className="num text-[11px] text-ink-soft">{parsed.timeframe}</p>
-        ) : null}
+        <div className="flex items-baseline gap-3">
+          {parsed.timeframe ? (
+            <p className="num text-[11px] text-ink-soft">{parsed.timeframe}</p>
+          ) : null}
+          {resolved ? (
+            <button
+              type="button"
+              onClick={() => setManualOpen(false)}
+              className="text-[11px] text-ink-soft underline underline-offset-2 hover:text-ink"
+            >
+              свернуть
+            </button>
+          ) : null}
+        </div>
       </div>
 
       <div className="mt-2">
         {rows.map((row) => {
           const distance = hasEntry ? (Math.abs(row.value - entry) / entry) * 100 : null;
           const isEntry = hasEntry && row.value === entry;
-          const isStop = Number.isFinite(stop) && stopLoss.trim().length > 0 && row.value === stop;
+          const isStop = hasStop && row.value === stop;
 
           return (
             <div
