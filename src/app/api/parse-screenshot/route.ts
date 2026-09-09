@@ -6,28 +6,50 @@ import { handleError, badRequest } from "@/lib/api";
 export const runtime = "nodejs";
 export const maxDuration = 60;
 
-// Дословный промпт из ТЗ (раздел 5). Модель ничего не решает за пользователя.
+// Промпт из раздела 5 ТЗ, расширенный ролью уровня и направлением.
+// Расширение не заставляет модель РЕШАТЬ, где стоп: она сообщает только то, чем
+// уровень уже помечен на самом графике — цветом плашки на ценовой шкале или
+// зоной инструмента позиции TradingView. Финальное слово остаётся за
+// пользователем: любое поле правится в один клик.
 const PROMPT = `Ты помогаешь трейдеру быстро занести сделку в журнал по скриншоту графика TradingView.
 Извлеки из изображения только то, что объективно видно:
 - pair: торговая пара, если читается на скриншоте
 - currentPrice: текущая цена, если видна
 - timeframe: таймфрейм, если виден
 - levels: список явно прочерченных горизонтальных линий/уровней на графике (цена каждой линии).
-  Не более 6 штук. Не пытайся угадать, какая линия — стоп, а какая — тейк: просто перечисли уровни.
+  Не более 8 штук. Для каждого уровня укажи role, но ТОЛЬКО если роль уже обозначена на самом
+  графике — цветом плашки на ценовой шкале справа или зоной инструмента позиции TradingView:
+    "entry"  — цена помечена как вход: серая или тёмная плашка на ценовой шкале либо линия входа
+               инструмента позиции
+    "stop"   — цена помечена как стоп: красная плашка на ценовой шкале либо дальняя граница
+               красной (убыточной) зоны инструмента позиции
+    "target" — цена помечена как цель: дальняя граница зелёной (прибыльной) зоны инструмента позиции
+    null     — уровень ничем из перечисленного не помечен
+- direction: если на графике нарисован инструмент позиции, верни "long", когда зелёная зона выше
+  линии входа, и "short", когда зелёная зона ниже. Если инструмента позиции нет — null.
 
-НЕ определяй направление сделки (long/short) и НЕ решай, какой уровень является стоп-лоссом — это
-всегда подтверждает пользователь вручную. Если что-то не видно на скриншоте — верни null для этого поля,
-не придумывай значения.
+Не выводи роль из логики и не угадывай: если цвет плашки или зоны не читается, ставь role: null,
+а direction: null. Если чего-то не видно на скриншоте — верни null для этого поля, не придумывай
+значения.
 
 Ответь строго JSON без каких-либо пояснений, по схеме:
 {"pair": string | null, "currentPrice": number | null, "timeframe": string | null,
- "levels": [{"price": number}]}`;
+ "direction": "long" | "short" | null,
+ "levels": [{"price": number, "role": "entry" | "stop" | "target" | null}]}`;
 
 const parsedSchema = z.object({
   pair: z.string().nullable(),
   currentPrice: z.number().nullable(),
   timeframe: z.string().nullable(),
-  levels: z.array(z.object({ price: z.number() })).max(6),
+  direction: z.enum(["long", "short"]).nullable().catch(null),
+  levels: z
+    .array(
+      z.object({
+        price: z.number(),
+        role: z.enum(["entry", "stop", "target"]).nullable().catch(null),
+      }),
+    )
+    .max(8),
 });
 
 export type ParsedScreenshot = z.infer<typeof parsedSchema>;
@@ -36,8 +58,12 @@ const EMPTY: ParsedScreenshot = {
   pair: null,
   currentPrice: null,
   timeframe: null,
+  direction: null,
   levels: [],
 };
+
+// Модель для разбора вынесена в env, чтобы менять её без правки кода.
+const VISION_MODEL = process.env.VISION_MODEL ?? "claude-opus-5";
 
 const SUPPORTED = ["image/jpeg", "image/png", "image/gif", "image/webp"] as const;
 const MAX_BYTES = 5 * 1024 * 1024;
@@ -67,7 +93,7 @@ export async function POST(request: Request) {
 
     const client = new Anthropic({ apiKey });
     const response = await client.messages.create({
-      model: "claude-opus-5",
+      model: VISION_MODEL,
       max_tokens: 1024,
       messages: [
         {

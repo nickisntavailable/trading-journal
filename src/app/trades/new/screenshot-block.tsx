@@ -3,16 +3,21 @@
 import { useEffect, useRef, useState } from "react";
 import { price as fmtPrice, pct } from "@/lib/format";
 
+export type LevelRole = "entry" | "stop" | "target" | null;
+
 export type ParsedScreenshot = {
   pair: string | null;
   currentPrice: number | null;
   timeframe: string | null;
-  levels: { price: number }[];
+  /** Направление, если на графике нарисован инструмент позиции. */
+  direction: "long" | "short" | null;
+  levels: { price: number; role: LevelRole }[];
 };
 
 /**
- * Разбор скриншота — вспомогательный путь: он только предзаполняет пару и
- * показывает уровни-кандидаты. Ничего не подставляется в поля автоматически.
+ * Разбор скриншота. Предзаполняет пару, а также вход/стоп/направление — но
+ * только те, что уже помечены на самом графике; всё остальное остаётся
+ * кандидатами, которые пользователь переносит в поля сам.
  * Файл живёт в памяти браузера и запроса, на сервере не сохраняется.
  */
 export function ScreenshotBlock({
@@ -119,17 +124,20 @@ export function ScreenshotBlock({
 }
 
 /**
- * Кандидаты со скриншота. Каждый уровень подставляется в поле входа или стопа
- * только по клику — какой уровень чем является, решает пользователь, а не модель.
+ * Кандидаты со скриншота. Уровни, которые модель прочитала как помеченные на
+ * графике, уже подставлены в поля и отмечены здесь галочкой; любой другой
+ * уровень переносится в вход или стоп одним кликом.
  */
 export function ScreenshotCandidates({
   parsed,
   entryPrice,
+  stopLoss,
   onPickEntry,
   onPickStop,
 }: {
   parsed: ParsedScreenshot | null;
   entryPrice: string;
+  stopLoss: string;
   onPickEntry: (value: number) => void;
   onPickStop: (value: number) => void;
 }) {
@@ -137,13 +145,18 @@ export function ScreenshotCandidates({
 
   const entry = Number(entryPrice);
   const hasEntry = entryPrice.trim().length > 0 && Number.isFinite(entry) && entry > 0;
+  const stop = Number(stopLoss);
 
   const rows: { key: string; label: string; value: number }[] = [];
   if (parsed.currentPrice !== null) {
     rows.push({ key: "current", label: "текущая", value: parsed.currentPrice });
   }
   parsed.levels.forEach((level, index) => {
-    rows.push({ key: `level-${index}`, label: "уровень", value: level.price });
+    rows.push({
+      key: `level-${index}`,
+      label: ROLE_LABELS[level.role ?? "none"],
+      value: level.price,
+    });
   });
 
   if (rows.length === 0) {
@@ -156,10 +169,16 @@ export function ScreenshotCandidates({
     );
   }
 
+  const marked = parsed.levels.some((level) => level.role !== null);
+
   return (
     <div className="border-b border-rule py-4">
       <div className="flex items-baseline justify-between gap-3">
-        <p className="text-[11px] text-ink-soft">Со скриншота — подставь в нужное поле</p>
+        <p className="text-[11px] text-ink-soft">
+          {marked
+            ? "Со скриншота — помеченное подставлено, поправь кнопками"
+            : "Со скриншота — подставь в нужное поле"}
+        </p>
         {parsed.timeframe ? (
           <p className="num text-[11px] text-ink-soft">{parsed.timeframe}</p>
         ) : null}
@@ -167,9 +186,10 @@ export function ScreenshotCandidates({
 
       <div className="mt-2">
         {rows.map((row) => {
-          const distance = hasEntry
-            ? (Math.abs(row.value - entry) / entry) * 100
-            : null;
+          const distance = hasEntry ? (Math.abs(row.value - entry) / entry) * 100 : null;
+          const isEntry = hasEntry && row.value === entry;
+          const isStop = Number.isFinite(stop) && stopLoss.trim().length > 0 && row.value === stop;
+
           return (
             <div
               key={row.key}
@@ -185,16 +205,26 @@ export function ScreenshotCandidates({
               <button
                 type="button"
                 onClick={() => onPickEntry(row.value)}
-                className="rounded-[3px] border border-rule bg-white px-2 py-0.5 text-[11px] hover:border-ink"
+                className={
+                  "rounded-[3px] border px-2 py-0.5 text-[11px] " +
+                  (isEntry
+                    ? "border-ink bg-white text-ink"
+                    : "border-rule bg-white hover:border-ink")
+                }
               >
-                в вход
+                {isEntry ? "✓ вход" : "в вход"}
               </button>
               <button
                 type="button"
                 onClick={() => onPickStop(row.value)}
-                className="rounded-[3px] border border-rule bg-white px-2 py-0.5 text-[11px] hover:border-ink"
+                className={
+                  "rounded-[3px] border px-2 py-0.5 text-[11px] " +
+                  (isStop
+                    ? "border-short bg-white text-short"
+                    : "border-rule bg-white hover:border-ink")
+                }
               >
-                в стоп
+                {isStop ? "✓ стоп" : "в стоп"}
               </button>
             </div>
           );
@@ -203,3 +233,10 @@ export function ScreenshotCandidates({
     </div>
   );
 }
+
+const ROLE_LABELS: Record<string, string> = {
+  entry: "вход по графику",
+  stop: "стоп по графику",
+  target: "цель по графику",
+  none: "уровень",
+};

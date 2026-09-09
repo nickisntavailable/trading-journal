@@ -55,7 +55,16 @@ export function NewTradeForm({ account }: { account: AccountDTO }) {
   function applyParsed(result: ParsedScreenshot) {
     if (result.pair) setPair(result.pair.toUpperCase());
     setParsed(result);
-    // Уровни и текущая цена не подставляются автоматически — только по клику.
+
+    // Подставляем только то, что уже помечено на самом графике: цвет плашки на
+    // ценовой шкале и зоны инструмента позиции модель читает, а не выводит.
+    // Всё подставленное видно в списке кандидатов и правится одним кликом.
+    if (result.direction) setDirection(result.direction === "short" ? -1 : 1);
+
+    const markedEntry = result.levels.find((level) => level.role === "entry");
+    const markedStop = result.levels.find((level) => level.role === "stop");
+    if (markedEntry) setEntryPrice(String(markedEntry.price));
+    if (markedStop) setStopLoss(String(markedStop.price));
   }
 
   // Пара и таймфрейм лежат в самой ссылке TradingView — читаем их сразу,
@@ -115,6 +124,7 @@ export function NewTradeForm({ account }: { account: AccountDTO }) {
       <ScreenshotCandidates
         parsed={parsed}
         entryPrice={entryPrice}
+        stopLoss={stopLoss}
         onPickEntry={(v) => setEntryPrice(String(v))}
         onPickStop={(v) => setStopLoss(String(v))}
       />
