@@ -13,6 +13,7 @@ export type AccountDTO = {
   id: string;
   balance: number;
   baseRiskPct: number;
+  riskLimitPct: number;
   feeRatePct: number;
 };
 
@@ -63,6 +64,7 @@ export function accountToDTO(a: Account): AccountDTO {
     id: a.id,
     balance: n(a.balance),
     baseRiskPct: n(a.baseRiskPct),
+    riskLimitPct: n(a.riskLimitPct),
     feeRatePct: n(a.feeRatePct),
   };
 }

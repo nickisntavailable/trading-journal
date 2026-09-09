@@ -20,11 +20,16 @@ export async function GET() {
 const patchSchema = z
   .object({
     baseRiskPct: z.number().gt(0).max(100).optional(),
+    riskLimitPct: z.number().gt(0).max(100).optional(),
     feeRatePct: z.number().min(0).max(10).optional(),
   })
-  .refine((v) => v.baseRiskPct !== undefined || v.feeRatePct !== undefined, {
-    message: "Нечего обновлять",
-  });
+  .refine(
+    (v) =>
+      v.baseRiskPct !== undefined ||
+      v.riskLimitPct !== undefined ||
+      v.feeRatePct !== undefined,
+    { message: "Нечего обновлять" },
+  );
 
 export async function PATCH(request: Request) {
   try {
@@ -35,6 +40,7 @@ export async function PATCH(request: Request) {
       where: { id: account.id },
       data: {
         ...(body.baseRiskPct !== undefined ? { baseRiskPct: body.baseRiskPct } : {}),
+        ...(body.riskLimitPct !== undefined ? { riskLimitPct: body.riskLimitPct } : {}),
         ...(body.feeRatePct !== undefined ? { feeRatePct: body.feeRatePct } : {}),
       },
     });

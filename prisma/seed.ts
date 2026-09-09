@@ -15,6 +15,7 @@ async function main() {
     data: {
       balance: "0",
       baseRiskPct: "1.00",
+      riskLimitPct: "3.00",
       feeRatePct: "0.0600",
     },
   });

@@ -1,5 +1,5 @@
 import { money, pct } from "@/lib/format";
-import { RISK_BUDGET_MULTIPLIER, type RiskBudget } from "@/lib/risk-budget";
+import { RISK_WARNING_RATIO, type RiskBudget } from "@/lib/risk-budget";
 
 type Segment = { id: string; label: string; amount: number };
 
@@ -10,11 +10,11 @@ type Segment = { id: string; label: string; amount: number };
 export function RiskBudgetHero({
   budget,
   segments,
-  baseRiskPct,
+  riskLimitPct,
 }: {
   budget: RiskBudget;
   segments: Segment[];
-  baseRiskPct: number;
+  riskLimitPct: number;
 }) {
   const zoneColor = budget.zone === "warning" ? "var(--amber)" : "var(--long)";
   const usedRatio = Math.min(budget.ratio, 1);
@@ -24,7 +24,7 @@ export function RiskBudgetHero({
       <div className="flex items-baseline justify-between gap-4">
         <h1 className="text-[13px] font-medium">Бюджет риска</h1>
         <p className="text-[12px] text-ink-soft">
-          лимит {RISK_BUDGET_MULTIPLIER} × <span className="num">{pct(baseRiskPct)}</span>
+          лимит <span className="num">{pct(riskLimitPct)}</span> от баланса
         </p>
       </div>
 
@@ -73,7 +73,7 @@ function RiskBar({
   color: string;
 }) {
   const scale = budget.limitAmount > 0 ? budget.limitAmount : 1;
-  const warningLeft = `${(2 / 3) * 100}%`;
+  const warningLeft = `${RISK_WARNING_RATIO * 100}%`;
 
   return (
     <div>

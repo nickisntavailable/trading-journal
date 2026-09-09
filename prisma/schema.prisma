@@ -11,6 +11,7 @@ model Account {
   id            String         @id @default(cuid())
   balance       Decimal        @db.Decimal(18, 2)
   baseRiskPct   Decimal        @db.Decimal(5, 2)
+  riskLimitPct  Decimal        @default(3.00) @db.Decimal(5, 2) // потолок суммарного риска открытых позиций, % от баланса
   feeRatePct    Decimal        @db.Decimal(6, 4) // напр. 0.0600 = 0.06%
   createdAt     DateTime       @default(now())
   updatedAt     DateTime       @updatedAt

@@ -36,7 +36,7 @@ export default async function DashboardPage() {
 
   const budget = riskBudget(
     Number(account.balance),
-    Number(account.baseRiskPct),
+    Number(account.riskLimitPct),
     stats.openRiskAmount,
   );
 
@@ -44,7 +44,7 @@ export default async function DashboardPage() {
     <AppShell>
       <RiskBudgetHero
         budget={budget}
-        baseRiskPct={Number(account.baseRiskPct)}
+        riskLimitPct={Number(account.riskLimitPct)}
         segments={rows.map((row) => ({
           id: row.id,
           label: row.pair,

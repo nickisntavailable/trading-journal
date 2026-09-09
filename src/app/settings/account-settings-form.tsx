@@ -10,6 +10,7 @@ const inputClass =
 export function AccountSettingsForm({ account }: { account: AccountDTO }) {
   const router = useRouter();
   const [baseRiskPct, setBaseRiskPct] = useState(String(account.baseRiskPct));
+  const [riskLimitPct, setRiskLimitPct] = useState(String(account.riskLimitPct));
   const [feeRatePct, setFeeRatePct] = useState(String(account.feeRatePct));
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
@@ -26,6 +27,7 @@ export function AccountSettingsForm({ account }: { account: AccountDTO }) {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         baseRiskPct: Number(baseRiskPct),
+        riskLimitPct: Number(riskLimitPct),
         feeRatePct: Number(feeRatePct),
       }),
     });
@@ -42,7 +44,7 @@ export function AccountSettingsForm({ account }: { account: AccountDTO }) {
 
   return (
     <form onSubmit={onSubmit} className="mt-3 max-w-[420px]">
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-3">
         <div>
           <label htmlFor="baseRiskPct" className="block text-[11px] text-ink-soft">
             Базовый риск, %
@@ -54,6 +56,20 @@ export function AccountSettingsForm({ account }: { account: AccountDTO }) {
             inputMode="decimal"
             value={baseRiskPct}
             onChange={(e) => setBaseRiskPct(e.target.value)}
+            className={inputClass + " mt-1"}
+          />
+        </div>
+        <div>
+          <label htmlFor="riskLimitPct" className="block text-[11px] text-ink-soft">
+            Лимит риска, %
+          </label>
+          <input
+            id="riskLimitPct"
+            type="number"
+            step="0.01"
+            inputMode="decimal"
+            value={riskLimitPct}
+            onChange={(e) => setRiskLimitPct(e.target.value)}
             className={inputClass + " mt-1"}
           />
         </div>
@@ -74,8 +90,10 @@ export function AccountSettingsForm({ account }: { account: AccountDTO }) {
       </div>
 
       <p className="mt-2 text-[11px] text-ink-soft">
-        Новые значения применяются только к сделкам, открытым после сохранения: у уже
-        открытых снапшот ставки и депозита не меняется.
+        Лимит риска — потолок суммарного риска открытых позиций в процентах от баланса,
+        по нему считается бюджет на дашборде. Базовый риск и комиссия применяются только
+        к сделкам, открытым после сохранения: у уже открытых снапшот ставки и депозита
+        не меняется.
       </p>
 
       {error ? <p className="mt-2 text-[12px] text-short">{error}</p> : null}

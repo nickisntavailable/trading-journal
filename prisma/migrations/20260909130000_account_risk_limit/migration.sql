@@ -1,0 +1,2 @@
+-- AlterTable
+ALTER TABLE "Account" ADD COLUMN "riskLimitPct" DECIMAL(5,2) NOT NULL DEFAULT 3.00;
