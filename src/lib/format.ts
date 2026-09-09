@@ -43,9 +43,12 @@ export function price(value: number | string | null | undefined): string {
   }).format(n);
 }
 
-export function ratio(value: number | string | null | undefined): string {
+/** Знаковый R-мультипликатор: +2.00R / −1.00R. */
+export function rMultiple(value: number | string | null | undefined): string {
   if (value === null || value === undefined) return "—";
-  return Number(value).toFixed(2);
+  const n = Number(value);
+  const sign = n > 0 ? "+" : n < 0 ? "−" : "";
+  return `${sign}${Math.abs(n).toFixed(2)}R`;
 }
 
 export function shortDate(value: Date | string): string {

@@ -2,7 +2,7 @@ import Link from "next/link";
 import { AppShell } from "@/components/app-shell";
 import { DirectionTag } from "@/components/direction-tag";
 import { getAccount } from "@/lib/account";
-import { money, ratio, shortDate, signedMoney, signedPct } from "@/lib/format";
+import { money, rMultiple, shortDate, signedMoney, signedPct } from "@/lib/format";
 import { prisma } from "@/lib/prisma";
 
 export const dynamic = "force-dynamic";
@@ -155,8 +155,8 @@ export default async function HistoryPage({
                   <span className={"num text-right " + tone}>
                     {signedPct(trade.netPnlPctOfDeposit ? Number(trade.netPnlPctOfDeposit) : 0)}
                   </span>
-                  <span className="num text-right">
-                    {ratio(trade.realizedRR ? Number(trade.realizedRR) : null)}
+                  <span className={"num text-right " + tone}>
+                    {rMultiple(trade.realizedRR === null ? null : Number(trade.realizedRR))}
                   </span>
                 </Link>
               );
@@ -191,7 +191,7 @@ export default async function HistoryPage({
                       {signedPct(
                         trade.netPnlPctOfDeposit ? Number(trade.netPnlPctOfDeposit) : 0,
                       )}{" "}
-                      · R:R {ratio(trade.realizedRR ? Number(trade.realizedRR) : null)}
+                      · {rMultiple(trade.realizedRR === null ? null : Number(trade.realizedRR))}
                     </span>
                   </div>
                 </Link>

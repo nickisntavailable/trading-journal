@@ -16,6 +16,8 @@ export type TradeMathInput = {
   positionSize: number;
   depositAtEntry: number;
   feeRateAtEntry: number;
+  /** Планируемый убыток при срабатывании стопа — знаменатель R-мультипликатора. */
+  riskAmount: number;
 };
 
 export type CloseResult = {
@@ -95,10 +97,11 @@ export function closeTrade(trade: TradeMathInput, fixes: FixInput[]): CloseResul
   const netPnlPctOfDeposit = (netPnL / trade.depositAtEntry) * 100;
 
   const realizedAvgExit = sum(fixes.map((f) => f.price * f.sizePct)) / 100;
-  const realizedProfitPct =
-    (Math.abs(realizedAvgExit - trade.entryPrice) / trade.entryPrice) * 100;
-  const distancePct = stopDistancePct(trade.entryPrice, trade.stopLoss);
-  const realizedRR = realizedProfitPct / distancePct;
+
+  // Знаковый R-мультипликатор: сколько запланированных рисков реально принесла
+  // сделка. Формула раздела 4 ТЗ брала модуль хода цены, из-за чего убыточная
+  // сделка получала положительный R:R и портила статистику в истории.
+  const realizedRR = trade.riskAmount !== 0 ? netPnL / trade.riskAmount : 0;
 
   return {
     grossPnL,

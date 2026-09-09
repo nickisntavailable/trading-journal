@@ -5,7 +5,7 @@ import { DirectionTag } from "@/components/direction-tag";
 import { ProgressBar } from "@/components/progress-bar";
 import { FixesPanel } from "@/app/trades/[id]/fixes-panel";
 import { getAccount } from "@/lib/account";
-import { dateTime, money, pct, price, ratio, signedMoney, signedPct } from "@/lib/format";
+import { dateTime, money, pct, price, rMultiple, signedMoney, signedPct } from "@/lib/format";
 import { prisma } from "@/lib/prisma";
 import { fixToDTO, tradeToDTO } from "@/lib/serialize";
 import { stopDistancePct } from "@/lib/trading-math";
@@ -124,7 +124,7 @@ function ResultBlock({
         <Param label="Комиссии" value={money(trade.totalFees)} />
         <Param label="Net P/L" value={signedMoney(trade.netPnL)} tone={tone} />
         <Param label="% к депозиту" value={signedPct(trade.netPnlPctOfDeposit)} tone={tone} />
-        <Param label="Realized R:R" value={ratio(trade.realizedRR)} />
+        <Param label="Realized R:R" value={rMultiple(trade.realizedRR)} tone={tone} />
       </div>
       <p className="mt-3 text-[11px] text-ink-soft">
         средняя цена выхода <span className="num">{price(trade.realizedAvgExit)}</span>

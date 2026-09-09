@@ -79,6 +79,7 @@ export async function POST(
           positionSize: Number(trade.positionSize),
           depositAtEntry: Number(trade.depositAtEntry),
           feeRateAtEntry: Number(trade.feeRateAtEntry),
+          riskAmount: Number(trade.riskAmount),
         },
         allFixes,
       );
