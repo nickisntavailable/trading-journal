@@ -1,6 +1,7 @@
 import { AppShell } from "@/components/app-shell";
 import { AccountSettingsForm } from "@/app/settings/account-settings-form";
 import { BalanceForm } from "@/app/settings/balance-form";
+import { LogoutButton } from "@/components/logout-button";
 import { getAccount } from "@/lib/account";
 import { dateTime, money, signedMoney } from "@/lib/format";
 import { prisma } from "@/lib/prisma";
@@ -41,7 +42,7 @@ export default async function SettingsPage() {
         <BalanceForm />
       </section>
 
-      <section className="py-5">
+      <section className="border-b border-rule py-5">
         <h2 className="text-[12px] text-ink-soft">История изменений баланса</h2>
         {events.length === 0 ? (
           <p className="mt-3 text-[13px] text-ink-soft">Пока пусто</p>
@@ -70,6 +71,13 @@ export default async function SettingsPage() {
             })}
           </div>
         )}
+      </section>
+
+      <section className="py-5">
+        <h2 className="text-[12px] text-ink-soft">Сессия</h2>
+        <div className="mt-2">
+          <LogoutButton className="rounded-[3px] border border-rule bg-white px-3 py-1.5 text-[12px] hover:border-ink disabled:opacity-40" />
+        </div>
       </section>
     </AppShell>
   );
