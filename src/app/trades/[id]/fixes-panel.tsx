@@ -31,6 +31,11 @@ export function FixesPanel({
   const remainingPct = Math.max(0, 100 - closedPct);
   const lastFixId = fixes.length > 0 ? fixes[fixes.length - 1].id : null;
 
+  // Быстрые доли: только те, что помещаются в остаток, без дублей.
+  // Остаток вынесен отдельной кнопкой, иначе он повторял бы одну из долей.
+  const remainder = Number(remainingPct.toFixed(2));
+  const quickSizes = [25, 50, 75].filter((value) => value < remainder);
+
   async function addFix(event: React.FormEvent) {
     event.preventDefault();
     setError(null);
@@ -202,17 +207,25 @@ export function FixesPanel({
             <p className="text-[11px] text-ink-soft">
               осталось <span className="num">{remainingPct.toFixed(2)}%</span>
             </p>
-            {[25, 50, remainingPct].map((value, index) => (
+            {quickSizes.map((value) => (
               <button
-                key={index}
+                key={value}
                 type="button"
-                onClick={() => setSizePct(String(Number(value.toFixed(2))))}
-                disabled={value <= 0 || value > remainingPct}
-                className="rounded-[3px] border border-rule bg-white px-2 py-0.5 text-[11px] disabled:opacity-30"
+                onClick={() => setSizePct(String(value))}
+                className="rounded-[3px] border border-rule bg-white px-2 py-0.5 text-[11px] hover:border-ink"
               >
-                <span className="num">{Number(value.toFixed(2))}%</span>
+                <span className="num">{value}%</span>
               </button>
             ))}
+            {remainder > 0 && !quickSizes.includes(remainder) ? (
+              <button
+                type="button"
+                onClick={() => setSizePct(String(remainder))}
+                className="rounded-[3px] border border-rule bg-white px-2 py-0.5 text-[11px] hover:border-ink"
+              >
+                весь остаток
+              </button>
+            ) : null}
           </div>
 
           {error ? <p className="mt-3 text-[12px] text-short">{error}</p> : null}
