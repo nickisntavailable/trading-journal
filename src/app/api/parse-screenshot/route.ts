@@ -68,7 +68,7 @@ const EMPTY: ParsedScreenshot = {
 };
 
 // Модель для разбора вынесена в env, чтобы менять её без правки кода.
-const VISION_MODEL = process.env.VISION_MODEL ?? "claude-opus-5";
+const VISION_MODEL = process.env.VISION_MODEL ?? "claude-haiku-4-5";
 
 const SUPPORTED = ["image/jpeg", "image/png", "image/gif", "image/webp"] as const;
 const MAX_BYTES = 5 * 1024 * 1024;
