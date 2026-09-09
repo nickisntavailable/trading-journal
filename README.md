@@ -1,36 +1,63 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Trading Journal
 
-## Getting Started
+Личный трейд-журнал с риск-менеджментом на одного пользователя.
+Next.js (App Router) + Postgres (Neon) через Prisma, деплой на Vercel.
 
-First, run the development server:
+## Локальный запуск
 
 ```bash
+npm install
+cp .env.example .env   # заполнить DATABASE_URL, ANTHROPIC_API_KEY, APP_PASSWORD
+npx prisma migrate dev
+npx prisma db seed     # создаёт единственный Account
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+### Переменные окружения
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+| Переменная          | Назначение                                              |
+| ------------------- | ------------------------------------------------------- |
+| `DATABASE_URL`      | строка подключения к Postgres (Neon)                     |
+| `ANTHROPIC_API_KEY` | ключ для разбора скриншотов, только на сервере           |
+| `APP_PASSWORD`      | пароль для входа (MVP-заглушка вместо полноценного auth) |
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## Деплой на Vercel + Neon
 
-## Learn More
+1. Импортировать репозиторий в Vercel.
+2. Подключить Neon через Vercel-интеграцию — она сама заводит `DATABASE_URL`.
+3. Добавить `ANTHROPIC_API_KEY` и `APP_PASSWORD` в Environment Variables.
+4. Задеплоить: `npm run build` прогоняет `prisma migrate deploy` перед сборкой.
+5. Один раз после первого деплоя выполнить сид, чтобы появился `Account`:
+   ```bash
+   DATABASE_URL="<neon-url>" npx prisma db seed
+   ```
 
-To learn more about Next.js, take a look at the following resources:
+## Структура
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+```
+prisma/schema.prisma          Account / BalanceEvent / Trade / Fix
+src/lib/trading-math.ts       формулы: risk, position size, закрытие сделки
+src/lib/risk-budget.ts        бюджет риска и его зоны
+src/app/api/**                route handlers (zod-валидация, транзакции)
+src/app/(pages)               дашборд, /trades/new, /trades/[id], /trades, /settings
+```
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+### Что важно знать про расчёты
 
-## Deploy on Vercel
+- Все денежные вычисления идут на сервере; клиент считает live-превью тем же
+  `lib/trading-math.ts` — логика не продублирована.
+- `Trade` хранит снапшоты `depositAtEntry` и `feeRateAtEntry`, поэтому изменение
+  настроек не меняет уже открытые сделки.
+- Сделка закрывается автоматически, когда сумма `sizePct` фиксаций достигает 100:
+  в одной транзакции считается результат, создаётся `BalanceEvent` типа
+  `trade_settlement` и обновляется баланс аккаунта.
+- Баланс нельзя изменить напрямую через `PATCH /api/account` — только через
+  `BalanceEvent` или закрытие сделки.
+- Лимит бюджета риска в схеме ТЗ не задан отдельным полем, поэтому выводится из
+  базового риска: не более трёх базовых рисков одновременно в рынке
+  (`RISK_BUDGET_MULTIPLIER` в `src/lib/risk-budget.ts`).
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+## Вне рамок MVP
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+Интеграция с API биржи, полноценный auth, хранение скриншотов и автоматическое
+определение направления/стопа моделью — фаза 2, сейчас не реализовано.
