@@ -3,12 +3,13 @@
 import { useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
 import {
-  LevelCandidates,
   ScreenshotBlock,
+  ScreenshotCandidates,
   type ParsedScreenshot,
 } from "@/app/trades/new/screenshot-block";
 import { money, pct } from "@/lib/format";
 import type { AccountDTO } from "@/lib/serialize";
+import { parseTradingViewLink } from "@/lib/tradingview-link";
 import {
   positionSize,
   riskAmount,
@@ -29,7 +30,7 @@ export function NewTradeForm({ account }: { account: AccountDTO }) {
   const [stopLoss, setStopLoss] = useState("");
   const [riskPct, setRiskPct] = useState(account.baseRiskPct);
   const [tvLink, setTvLink] = useState("");
-  const [levels, setLevels] = useState<{ price: number }[]>([]);
+  const [parsed, setParsed] = useState<ParsedScreenshot | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
 
@@ -51,10 +52,21 @@ export function NewTradeForm({ account }: { account: AccountDTO }) {
     };
   }, [entryPrice, stopLoss, riskPct, direction, account.balance]);
 
-  function applyParsed(parsed: ParsedScreenshot) {
-    if (parsed.pair) setPair(parsed.pair.toUpperCase());
-    setLevels(parsed.levels);
+  function applyParsed(result: ParsedScreenshot) {
+    if (result.pair) setPair(result.pair.toUpperCase());
+    setParsed(result);
     // Уровни и текущая цена не подставляются автоматически — только по клику.
+  }
+
+  // Пара и таймфрейм лежат в самой ссылке TradingView — читаем их сразу,
+  // без запроса к модели. Пару подставляем только в пустое поле, чтобы не
+  // затирать то, что пользователь уже ввёл руками.
+  const linkInfo = useMemo(() => parseTradingViewLink(tvLink), [tvLink]);
+
+  function onTvLinkChange(value: string) {
+    setTvLink(value);
+    const info = parseTradingViewLink(value);
+    if (info?.pair && pair.trim().length === 0) setPair(info.pair);
   }
 
   async function onSubmit(event: React.FormEvent) {
@@ -100,6 +112,12 @@ export function NewTradeForm({ account }: { account: AccountDTO }) {
   return (
     <form onSubmit={onSubmit} className="mt-4 max-w-[560px]">
       <ScreenshotBlock onParsed={applyParsed} />
+      <ScreenshotCandidates
+        parsed={parsed}
+        entryPrice={entryPrice}
+        onPickEntry={(v) => setEntryPrice(String(v))}
+        onPickStop={(v) => setStopLoss(String(v))}
+      />
 
       <div className="border-b border-rule py-4">
         <label htmlFor="tvLink" className="block text-[11px] text-ink-soft">
@@ -111,8 +129,14 @@ export function NewTradeForm({ account }: { account: AccountDTO }) {
           inputMode="url"
           placeholder="https://www.tradingview.com/x/…"
           value={tvLink}
-          onChange={(e) => setTvLink(e.target.value)}
+          onChange={(e) => onTvLinkChange(e.target.value)}
           className={inputClass + " mt-1"}
+        />
+        <LinkReadout
+          info={linkInfo}
+          hasLink={tvLink.trim().length > 0}
+          currentPair={pair}
+          onUsePair={setPair}
         />
       </div>
 
@@ -188,7 +212,6 @@ export function NewTradeForm({ account }: { account: AccountDTO }) {
             onChange={(e) => setStopLoss(e.target.value)}
             className={inputClass + " mt-1"}
           />
-          <LevelCandidates levels={levels} onPick={(v) => setStopLoss(String(v))} />
         </div>
       </div>
 
@@ -233,6 +256,62 @@ export function NewTradeForm({ account }: { account: AccountDTO }) {
         {pending ? "Открываю…" : "Открыть сделку"}
       </button>
     </form>
+  );
+}
+
+/** Что удалось вычитать из ссылки. Подстановка пары — только по клику. */
+function LinkReadout({
+  info,
+  hasLink,
+  currentPair,
+  onUsePair,
+}: {
+  info: ReturnType<typeof parseTradingViewLink>;
+  hasLink: boolean;
+  currentPair: string;
+  onUsePair: (value: string) => void;
+}) {
+  if (!hasLink) return null;
+
+  if (!info) {
+    return (
+      <p className="mt-1.5 text-[11px] text-ink-soft">
+        Ссылка сохранится вместе со сделкой, но прочитать из неё пару не вышло —
+        это не адрес TradingView.
+      </p>
+    );
+  }
+
+  if (!info.pair) {
+    return (
+      <p className="mt-1.5 text-[11px] text-ink-soft">
+        {info.snapshotId
+          ? "Это снимок графика: пары в адресе нет. Заполни поля вручную или загрузи скриншот."
+          : "В адресе нет символа — заполни пару вручную."}
+      </p>
+    );
+  }
+
+  const mismatch = currentPair.trim().length > 0 && currentPair.trim() !== info.pair;
+
+  return (
+    <p className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] text-ink-soft">
+      <span>Из ссылки:</span>
+      <span className="num text-ink">
+        {info.exchange ? `${info.exchange}:` : ""}
+        {info.pair}
+      </span>
+      {info.timeframe ? <span className="num">· {info.timeframe}</span> : null}
+      {mismatch ? (
+        <button
+          type="button"
+          onClick={() => onUsePair(info.pair as string)}
+          className="rounded-[3px] border border-rule bg-white px-2 py-0.5 hover:border-ink"
+        >
+          подставить <span className="num">{info.pair}</span>
+        </button>
+      ) : null}
+    </p>
   );
 }
 

@@ -90,8 +90,27 @@ export async function POST(request: Request) {
   } catch (error) {
     // Ошибку конфигурации/валидации отдаём как есть, всё остальное — не критичный путь.
     if (error instanceof Error && error.name === "ZodError") return NextResponse.json(EMPTY);
+
+    // Ответ провайдера содержит request_id и внутреннюю структуру — в интерфейсе
+    // это шум, поэтому наружу отдаём короткий текст, подробности в логи сервера.
+    if (error instanceof Anthropic.APIError) {
+      console.error("parse-screenshot: ошибка Anthropic API", error.status, error.message);
+      return NextResponse.json(
+        { error: anthropicErrorMessage(error.status) },
+        { status: 502 },
+      );
+    }
+
     return handleError(error);
   }
+}
+
+function anthropicErrorMessage(status: number | undefined): string {
+  if (status === 400) return "Не удалось прочитать изображение — попробуй другой скриншот";
+  if (status === 401 || status === 403) return "Ключ Anthropic отклонён — проверь ANTHROPIC_API_KEY";
+  if (status === 429) return "Слишком часто — подожди немного и повтори";
+  if (status !== undefined && status >= 500) return "Сервис разбора временно недоступен";
+  return "Не удалось разобрать скриншот";
 }
 
 /** Невалидный ответ модели — не ошибка: форма просто остаётся пустой. */
