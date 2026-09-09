@@ -33,6 +33,8 @@ export function NewTradeForm({ account }: { account: AccountDTO }) {
   const [parsed, setParsed] = useState<ParsedScreenshot | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
+  const [parsingSnapshot, setParsingSnapshot] = useState(false);
+  const [snapshotError, setSnapshotError] = useState<string | null>(null);
 
   // Live-превью считается тем же кодом, что и на сервере, без похода на бэкенд.
   const preview = useMemo(() => {
@@ -80,8 +82,32 @@ export function NewTradeForm({ account }: { account: AccountDTO }) {
 
   function onTvLinkChange(value: string) {
     setTvLink(value);
+    setSnapshotError(null);
     const info = parseTradingViewLink(value);
     if (info?.pair && pair.trim().length === 0) setPair(info.pair);
+  }
+
+  /** Снимок разбирается тем же путём, что и загруженный файл. */
+  async function parseSnapshot() {
+    setParsingSnapshot(true);
+    setSnapshotError(null);
+    try {
+      const response = await fetch("/api/parse-screenshot", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ url: tvLink.trim() }),
+      });
+      const data = await response.json();
+      if (!response.ok) {
+        setSnapshotError(data.error ?? "Не удалось разобрать снимок");
+        return;
+      }
+      applyParsed(data as ParsedScreenshot);
+    } catch {
+      setSnapshotError("Не удалось разобрать снимок");
+    } finally {
+      setParsingSnapshot(false);
+    }
   }
 
   async function onSubmit(event: React.FormEvent) {
@@ -153,6 +179,9 @@ export function NewTradeForm({ account }: { account: AccountDTO }) {
           hasLink={tvLink.trim().length > 0}
           currentPair={pair}
           onUsePair={setPair}
+          onParseSnapshot={parseSnapshot}
+          parsingSnapshot={parsingSnapshot}
+          snapshotError={snapshotError}
         />
       </div>
 
@@ -275,59 +304,101 @@ export function NewTradeForm({ account }: { account: AccountDTO }) {
   );
 }
 
-/** Что удалось вычитать из ссылки. Подстановка пары — только по клику. */
+/**
+ * Что удалось вычитать из ссылки, и что с ней можно сделать дальше.
+ * Ссылка на снимок (/x/…) разбирается целиком, ссылка на живой график даёт
+ * только тикер и таймфрейм — об этом здесь и написано.
+ */
 function LinkReadout({
   info,
   hasLink,
   currentPair,
   onUsePair,
+  onParseSnapshot,
+  parsingSnapshot,
+  snapshotError,
 }: {
   info: ReturnType<typeof parseTradingViewLink>;
   hasLink: boolean;
   currentPair: string;
   onUsePair: (value: string) => void;
+  onParseSnapshot: () => void;
+  parsingSnapshot: boolean;
+  snapshotError: string | null;
 }) {
-  if (!hasLink) return null;
-
-  if (!info) {
+  if (!hasLink) {
     return (
       <p className="mt-1.5 text-[11px] text-ink-soft">
-        Ссылка сохранится вместе со сделкой, но прочитать из неё пару не вышло —
-        это не адрес TradingView.
+        Ссылка на снимок (<span className="num">tradingview.com/x/…</span>) разбирается
+        целиком, как загруженный скриншот. Ссылка на сам график даст только тикер и
+        таймфрейм.
       </p>
     );
   }
 
-  if (!info.pair) {
+  if (!info) {
     return (
       <p className="mt-1.5 text-[11px] text-ink-soft">
-        {info.snapshotId
-          ? "Это снимок графика: пары в адресе нет. Заполни поля вручную или загрузи скриншот."
-          : "В адресе нет символа — заполни пару вручную."}
+        Ссылка сохранится вместе со сделкой, но прочитать из неё пару не вышло — это не
+        адрес TradingView.
       </p>
+    );
+  }
+
+  // Снимок: у него нет символа в адресе, зато есть картинка со всей разметкой.
+  if (info.snapshotId) {
+    return (
+      <div className="mt-1.5">
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+          <button
+            type="button"
+            onClick={onParseSnapshot}
+            disabled={parsingSnapshot}
+            className="rounded-[3px] border border-rule bg-white px-2.5 py-1 text-[11px] hover:border-ink disabled:opacity-40"
+          >
+            {parsingSnapshot ? "Разбираю снимок…" : "Разобрать снимок"}
+          </button>
+          <span className="text-[11px] text-ink-soft">
+            {snapshotError ?? "Заберём картинку снимка и прочитаем её как скриншот"}
+          </span>
+        </div>
+      </div>
     );
   }
 
   const mismatch = currentPair.trim().length > 0 && currentPair.trim() !== info.pair;
 
   return (
-    <p className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] text-ink-soft">
-      <span>Из ссылки:</span>
-      <span className="num text-ink">
-        {info.exchange ? `${info.exchange}:` : ""}
-        {info.pair}
-      </span>
-      {info.timeframe ? <span className="num">· {info.timeframe}</span> : null}
-      {mismatch ? (
-        <button
-          type="button"
-          onClick={() => onUsePair(info.pair as string)}
-          className="rounded-[3px] border border-rule bg-white px-2 py-0.5 hover:border-ink"
-        >
-          подставить <span className="num">{info.pair}</span>
-        </button>
-      ) : null}
-    </p>
+    <div className="mt-1.5">
+      {info.pair ? (
+        <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] text-ink-soft">
+          <span>Из ссылки:</span>
+          <span className="num text-ink">
+            {info.exchange ? `${info.exchange}:` : ""}
+            {info.pair}
+          </span>
+          {info.timeframe ? <span className="num">· {info.timeframe}</span> : null}
+          {mismatch ? (
+            <button
+              type="button"
+              onClick={() => onUsePair(info.pair as string)}
+              className="rounded-[3px] border border-rule bg-white px-2 py-0.5 hover:border-ink"
+            >
+              подставить <span className="num">{info.pair}</span>
+            </button>
+          ) : null}
+        </p>
+      ) : (
+        <p className="text-[11px] text-ink-soft">В адресе нет символа — заполни пару вручную.</p>
+      )}
+
+      <p className="mt-1 text-[11px] text-ink-soft">
+        Это ссылка на живой график: уровни из неё не вытащить, картинки по такому адресу
+        не существует. Чтобы разобрать разметку, сделай снимок — в TradingView Alt+S или
+        иконка фотоаппарата → «Скопировать ссылку на изображение графика», получится
+        адрес вида <span className="num">tradingview.com/x/…</span>.
+      </p>
+    </div>
   );
 }
 

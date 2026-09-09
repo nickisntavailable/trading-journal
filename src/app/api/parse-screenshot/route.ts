@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import Anthropic from "@anthropic-ai/sdk";
 import { z } from "zod";
 import { handleError, badRequest } from "@/lib/api";
+import { fetchTradingViewSnapshot, SnapshotError } from "@/lib/tradingview-snapshot";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -67,7 +68,7 @@ const EMPTY: ParsedScreenshot = {
 };
 
 // Модель для разбора вынесена в env, чтобы менять её без правки кода.
-const VISION_MODEL = process.env.VISION_MODEL ?? "claude-haiku-4-5";
+const VISION_MODEL = process.env.VISION_MODEL ?? "claude-opus-5";
 
 const SUPPORTED = ["image/jpeg", "image/png", "image/gif", "image/webp"] as const;
 const MAX_BYTES = 5 * 1024 * 1024;
@@ -82,23 +83,36 @@ export async function POST(request: Request) {
       );
     }
 
-    const form = await request.formData();
-    const file = form.get("image");
-    if (!(file instanceof File)) return badRequest("Ожидается файл изображения в поле image");
-    if (file.size > MAX_BYTES) return badRequest("Изображение больше 5 МБ");
+    // Два входа: загруженный файл (multipart) и ссылка на снимок (JSON).
+    // В обоих случаях картинка живёт только в памяти запроса и не сохраняется.
+    let base64: string;
+    let mediaType: (typeof SUPPORTED)[number];
 
-    const mediaType = file.type as (typeof SUPPORTED)[number];
-    if (!SUPPORTED.includes(mediaType)) {
-      return badRequest("Поддерживаются только PNG, JPEG, GIF и WebP");
+    if ((request.headers.get("content-type") ?? "").includes("application/json")) {
+      // safeParse, а не parse: ниже ZodError трактуется как «модель вернула мусор»
+      // и гасится пустым результатом, а битый адрес — это ошибка запроса.
+      const body = z.object({ url: z.string().url() }).safeParse(await request.json());
+      if (!body.success) return badRequest("Это не похоже на адрес — вставь ссылку целиком");
+      const snapshot = await fetchTradingViewSnapshot(body.data.url);
+      base64 = snapshot.bytes.toString("base64");
+      mediaType = snapshot.mediaType;
+    } else {
+      const form = await request.formData();
+      const file = form.get("image");
+      if (!(file instanceof File)) return badRequest("Ожидается файл изображения в поле image");
+      if (file.size > MAX_BYTES) return badRequest("Изображение больше 5 МБ");
+
+      mediaType = file.type as (typeof SUPPORTED)[number];
+      if (!SUPPORTED.includes(mediaType)) {
+        return badRequest("Поддерживаются только PNG, JPEG, GIF и WebP");
+      }
+      base64 = Buffer.from(await file.arrayBuffer()).toString("base64");
     }
-
-    // Файл живёт только в памяти этого запроса и никуда не сохраняется.
-    const base64 = Buffer.from(await file.arrayBuffer()).toString("base64");
 
     const client = new Anthropic({ apiKey });
     const response = await client.messages.create({
       model: VISION_MODEL,
-      max_tokens: 1024,
+      max_tokens: 4096,
       messages: [
         {
           role: "user",
@@ -110,6 +124,18 @@ export async function POST(request: Request) {
       ],
     });
 
+    // У моделей с рассуждением его токены тоже входят в max_tokens, поэтому на
+    // насыщенном графике потолок реально достижим. Обрезанный JSON не разберётся,
+    // и молча отдать «ничего не найдено» здесь нельзя: это выглядит как пустой
+    // график, хотя на самом деле разбор не доехал.
+    if (response.stop_reason === "max_tokens") {
+      console.error("parse-screenshot: ответ модели обрезан по max_tokens");
+      return NextResponse.json(
+        { error: "Слишком насыщенный график — разбор не поместился в ответ, попробуй ещё раз" },
+        { status: 502 },
+      );
+    }
+
     const text = response.content
       .filter((block) => block.type === "text")
       .map((block) => block.text)
@@ -118,6 +144,11 @@ export async function POST(request: Request) {
 
     return NextResponse.json(safeParse(text));
   } catch (error) {
+    // Проблему со ссылкой объясняем словами: пользователю надо понять, что делать.
+    if (error instanceof SnapshotError) {
+      return NextResponse.json({ error: error.message }, { status: 400 });
+    }
+
     // Ошибку конфигурации/валидации отдаём как есть, всё остальное — не критичный путь.
     if (error instanceof Error && error.name === "ZodError") return NextResponse.json(EMPTY);
 
