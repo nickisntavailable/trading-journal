@@ -2,7 +2,7 @@ import Link from "next/link";
 import { AppShell } from "@/components/app-shell";
 import { DirectionTag } from "@/components/direction-tag";
 import { getAccount } from "@/lib/account";
-import { money, rMultiple, shortDate, signedMoney, signedPct } from "@/lib/format";
+import { money, plural, rMultiple, shortDate, signedMoney, signedPct } from "@/lib/format";
 import { prisma } from "@/lib/prisma";
 
 export const dynamic = "force-dynamic";
@@ -54,7 +54,7 @@ export default async function HistoryPage({
       <div className="flex items-baseline justify-between border-b border-rule pb-3">
         <h1 className="text-[13px] font-medium">История</h1>
         <span className="text-[12px] text-ink-soft">
-          {trades.length} сделок ·{" "}
+          {trades.length} {plural(trades.length, "сделка", "сделки", "сделок")} ·{" "}
           <span
             className={
               "num " + (totalNet > 0 ? "text-long" : totalNet < 0 ? "text-short" : "")

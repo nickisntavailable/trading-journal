@@ -69,9 +69,20 @@ export default async function DashboardPage() {
       <section className="pt-5">
         <div className="flex items-baseline justify-between">
           <h2 className="text-[13px] font-medium">Открытые позиции</h2>
+          {/*
+            На десктопе настройки есть в верхней навигации, а таб-бар по ТЗ
+            состоит только из Журнал / + / История — поэтому на мобильной
+            ссылка на настройки живёт здесь, чтобы раздел не был недостижим.
+          */}
+          <Link
+            href="/settings"
+            className="text-[12px] text-ink-soft underline underline-offset-2 hover:text-ink md:hidden"
+          >
+            Настройки
+          </Link>
           <Link
             href="/trades"
-            className="text-[12px] text-ink-soft underline underline-offset-2 hover:text-ink"
+            className="hidden text-[12px] text-ink-soft underline underline-offset-2 hover:text-ink md:inline"
           >
             История
           </Link>

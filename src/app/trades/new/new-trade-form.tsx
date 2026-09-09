@@ -217,10 +217,7 @@ export function NewTradeForm({ account }: { account: AccountDTO }) {
       <div className="grid grid-cols-3 gap-4 border-b border-rule py-4">
         <Readout label="Риск, $" value={preview ? money(preview.risk) : "—"} />
         <Readout label="Размер позиции, $" value={preview ? money(preview.size) : "—"} />
-        <Readout
-          label="Дистанция до стопа"
-          value={preview ? pct(preview.distancePct) : "—"}
-        />
+        <Readout label="Дистанция" value={preview ? pct(preview.distancePct) : "—"} />
       </div>
 
       {preview?.stopError ? (
