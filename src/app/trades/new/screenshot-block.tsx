@@ -22,8 +22,11 @@ export type ParsedScreenshot = {
  */
 export function ScreenshotBlock({
   onParsed,
+  onFailure,
 }: {
   onParsed: (parsed: ParsedScreenshot) => void;
+  /** Скриншот не разобрался — форма покажет запасной путь со ссылкой. */
+  onFailure: () => void;
 }) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [pending, setPending] = useState(false);
@@ -57,11 +60,13 @@ export function ScreenshotBlock({
       const data = await response.json();
       if (!response.ok) {
         setError(data.error ?? "Не удалось разобрать скриншот");
+        onFailure();
         return;
       }
       onParsed(data as ParsedScreenshot);
     } catch {
       setError("Не удалось разобрать скриншот");
+      onFailure();
     } finally {
       setPending(false);
     }

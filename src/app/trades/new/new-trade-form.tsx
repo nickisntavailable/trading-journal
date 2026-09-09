@@ -35,6 +35,10 @@ export function NewTradeForm({ account }: { account: AccountDTO }) {
   const [pending, setPending] = useState(false);
   const [parsingSnapshot, setParsingSnapshot] = useState(false);
   const [snapshotError, setSnapshotError] = useState<string | null>(null);
+  // Основной путь — картинка. Поле ссылки открывается само, когда со скриншотом
+  // не вышло, либо вручную: ссылка сохраняется со сделкой и открывается с её
+  // страницы, так что она нужна и когда разбор прошёл успешно.
+  const [showLink, setShowLink] = useState(false);
 
   // Live-превью считается тем же кодом, что и на сервере, без похода на бэкенд.
   const preview = useMemo(() => {
@@ -57,6 +61,11 @@ export function NewTradeForm({ account }: { account: AccountDTO }) {
   function applyParsed(result: ParsedScreenshot) {
     if (result.pair) setPair(result.pair.toUpperCase());
     setParsed(result);
+
+    // Разбор формально успешен, но пустой — предлагаем запасной путь.
+    const empty =
+      result.pair === null && result.currentPrice === null && result.levels.length === 0;
+    if (empty) setShowLink(true);
 
     // Подставляем только то, что уже помечено на самом графике: цвет плашки на
     // ценовой шкале и зоны инструмента позиции модель читает, а не выводит.
@@ -152,7 +161,7 @@ export function NewTradeForm({ account }: { account: AccountDTO }) {
 
   return (
     <form onSubmit={onSubmit} className="mt-4 max-w-[560px]">
-      <ScreenshotBlock onParsed={applyParsed} />
+      <ScreenshotBlock onParsed={applyParsed} onFailure={() => setShowLink(true)} />
       <ScreenshotCandidates
         parsed={parsed}
         entryPrice={entryPrice}
@@ -161,29 +170,42 @@ export function NewTradeForm({ account }: { account: AccountDTO }) {
         onPickStop={(v) => setStopLoss(String(v))}
       />
 
-      <div className="border-b border-rule py-4">
-        <label htmlFor="tvLink" className="block text-[11px] text-ink-soft">
-          Ссылка на TradingView
-        </label>
-        <input
-          id="tvLink"
-          type="url"
-          inputMode="url"
-          placeholder="https://www.tradingview.com/x/…"
-          value={tvLink}
-          onChange={(e) => onTvLinkChange(e.target.value)}
-          className={inputClass + " mt-1"}
-        />
-        <LinkReadout
-          info={linkInfo}
-          hasLink={tvLink.trim().length > 0}
-          currentPair={pair}
-          onUsePair={setPair}
-          onParseSnapshot={parseSnapshot}
-          parsingSnapshot={parsingSnapshot}
-          snapshotError={snapshotError}
-        />
-      </div>
+      {showLink ? (
+        <div className="border-b border-rule py-4">
+          <label htmlFor="tvLink" className="block text-[11px] text-ink-soft">
+            Ссылка на TradingView
+          </label>
+          <input
+            id="tvLink"
+            type="url"
+            inputMode="url"
+            autoFocus
+            placeholder="https://www.tradingview.com/x/…"
+            value={tvLink}
+            onChange={(e) => onTvLinkChange(e.target.value)}
+            className={inputClass + " mt-1"}
+          />
+          <LinkReadout
+            info={linkInfo}
+            hasLink={tvLink.trim().length > 0}
+            currentPair={pair}
+            onUsePair={setPair}
+            onParseSnapshot={parseSnapshot}
+            parsingSnapshot={parsingSnapshot}
+            snapshotError={snapshotError}
+          />
+        </div>
+      ) : (
+        <div className="border-b border-rule py-3">
+          <button
+            type="button"
+            onClick={() => setShowLink(true)}
+            className="text-[11px] text-ink-soft underline underline-offset-2 hover:text-ink"
+          >
+            Добавить ссылку на TradingView
+          </button>
+        </div>
+      )}
 
       <div className="grid grid-cols-2 gap-4 border-b border-rule py-4">
         <div>
@@ -329,9 +351,10 @@ function LinkReadout({
   if (!hasLink) {
     return (
       <p className="mt-1.5 text-[11px] text-ink-soft">
-        Ссылка на снимок (<span className="num">tradingview.com/x/…</span>) разбирается
-        целиком, как загруженный скриншот. Ссылка на сам график даст только тикер и
-        таймфрейм.
+        Запасной путь, если со скриншотом не вышло: снимок графика
+        (<span className="num">tradingview.com/x/…</span>, в TradingView Alt+S) разбирается
+        так же, как загруженная картинка. Ссылка на сам график даст только тикер и
+        таймфрейм, но сохранится вместе со сделкой.
       </p>
     );
   }
