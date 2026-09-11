@@ -8,6 +8,19 @@ import type { FixDTO } from "@/lib/serialize";
 const inputClass =
   "num w-full rounded-[3px] border border-rule bg-white px-2.5 py-2 text-[14px] outline-none focus:border-ink";
 
+function DeleteFixButton({ onClick, disabled }: { onClick: () => void; disabled: boolean }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      className="text-[12px] text-ink-soft underline underline-offset-2 hover:text-short disabled:opacity-40"
+    >
+      удалить
+    </button>
+  );
+}
+
 export function FixesPanel({
   tradeId,
   status,
@@ -88,38 +101,61 @@ export function FixesPanel({
         </p>
       ) : (
         <div className="mt-3">
-          <div className="grid grid-cols-[1fr_0.8fr_0.8fr_1fr_auto] gap-3 border-y border-rule py-1.5 text-[11px] text-ink-soft">
-            <span>Дата</span>
-            <span className="text-right">Цена</span>
-            <span className="text-right">% позиции</span>
-            <span className="text-right">Объём, $</span>
-            <span className="w-12" />
-          </div>
-          {fixes.map((fix) => (
-            <div
-              key={fix.id}
-              className="grid grid-cols-[1fr_0.8fr_0.8fr_1fr_auto] items-center gap-3 border-b border-rule py-2 text-[13px]"
-            >
-              <span className="num text-ink-soft">{dateTime(fix.createdAt)}</span>
-              <span className="num text-right">{price(fix.price)}</span>
-              <span className="num text-right">{fix.sizePct.toFixed(2)}%</span>
-              <span className="num text-right">
-                {money((positionSize * fix.sizePct) / 100)}
-              </span>
-              <span className="w-12 text-right">
-                {status === "open" && fix.id === lastFixId ? (
-                  <button
-                    type="button"
-                    onClick={() => removeFix(fix.id)}
-                    disabled={pending}
-                    className="text-[12px] text-ink-soft underline underline-offset-2 hover:text-short disabled:opacity-40"
-                  >
-                    удалить
-                  </button>
-                ) : null}
-              </span>
+          {/* Десктоп: табличные колонки */}
+          <div className="hidden md:block">
+            <div className="grid grid-cols-[1fr_0.8fr_0.8fr_1fr_auto] gap-3 border-y border-rule py-1.5 text-[11px] text-ink-soft">
+              <span>Дата</span>
+              <span className="text-right">Цена</span>
+              <span className="text-right">% позиции</span>
+              <span className="text-right">Объём, $</span>
+              <span className="w-12" />
             </div>
-          ))}
+            {fixes.map((fix) => (
+              <div
+                key={fix.id}
+                className="grid grid-cols-[1fr_0.8fr_0.8fr_1fr_auto] items-center gap-3 border-b border-rule py-2 text-[13px]"
+              >
+                <span className="num text-ink-soft">{dateTime(fix.createdAt)}</span>
+                <span className="num text-right">{price(fix.price)}</span>
+                <span className="num text-right">{fix.sizePct.toFixed(2)}%</span>
+                <span className="num text-right">
+                  {money((positionSize * fix.sizePct) / 100)}
+                </span>
+                <span className="w-12 text-right">
+                  {status === "open" && fix.id === lastFixId ? (
+                    <DeleteFixButton onClick={() => removeFix(fix.id)} disabled={pending} />
+                  ) : null}
+                </span>
+              </div>
+            ))}
+          </div>
+
+          {/* Мобильная: строка-карточка, ничего не сжимается и не вылезает за экран */}
+          <div className="md:hidden">
+            {fixes.map((fix) => (
+              <div key={fix.id} className="border-b border-rule py-2.5 first:border-t">
+                <div className="flex items-baseline justify-between gap-3">
+                  <span className="num text-[14px]">{price(fix.price)}</span>
+                  <span className="num text-[13px]">
+                    {fix.sizePct.toFixed(2)}%
+                    <span className="text-ink-soft"> · {money((positionSize * fix.sizePct) / 100)}</span>
+                  </span>
+                </div>
+                <div className="mt-0.5 flex items-baseline justify-between gap-3 text-[12px] text-ink-soft">
+                  <span className="num">{dateTime(fix.createdAt)}</span>
+                  <span>
+                    {fix.type === "stop" ? "стоп" : "ручная"}
+                    {status === "open" && fix.id === lastFixId ? (
+                      <>
+                        {" · "}
+                        <DeleteFixButton onClick={() => removeFix(fix.id)} disabled={pending} />
+                      </>
+                    ) : null}
+                  </span>
+                </div>
+              </div>
+            ))}
+          </div>
           <p className="mt-2 text-[11px] text-ink-soft">
             {fixes.length > 0 && status === "open"
               ? "Удалить можно только последнюю фиксацию; у закрытой сделки история неизменна."

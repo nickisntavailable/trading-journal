@@ -19,7 +19,7 @@ export function TopNav() {
 
   return (
     <header className="hidden border-b border-rule md:block">
-      <nav className="mx-auto flex h-12 max-w-[1100px] items-center gap-6 px-6">
+      <nav className="mx-auto flex h-12 max-w-[920px] items-center gap-6 px-6">
         <Link href="/" className="text-[13px] font-semibold tracking-tight">
           Trading Journal
         </Link>

@@ -33,6 +33,10 @@ html,
 body {
   background: var(--bg);
   color: var(--ink);
+  /* Страница никогда не скроллится по горизонтали: широкий контент
+     прокручивается внутри своего контейнера. clip, а не hidden — не создаёт
+     scroll-контейнер и не ломает sticky/fixed в iOS Safari. */
+  overflow-x: clip;
 }
 
 body {
