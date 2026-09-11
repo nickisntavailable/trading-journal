@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { AppShell } from "@/components/app-shell";
+import { MarginMeter } from "@/components/margin-meter";
 import { Metric } from "@/components/metric";
 import { OpenTradesList, type OpenTradeRow } from "@/components/open-trades-list";
 import { RiskBudgetHero } from "@/components/risk-budget-hero";
@@ -8,6 +9,7 @@ import { money, pct, signedMoney } from "@/lib/format";
 import { prisma } from "@/lib/prisma";
 import { getDashboardStats } from "@/lib/queries";
 import { riskBudget } from "@/lib/risk-budget";
+import { margin } from "@/lib/trading-math";
 
 export const dynamic = "force-dynamic";
 
@@ -30,6 +32,8 @@ export default async function DashboardPage() {
     stopLoss: Number(trade.stopLoss),
     riskAmount: Number(trade.riskAmount),
     positionSize: Number(trade.positionSize),
+    margin: margin(Number(trade.positionSize), Number(trade.leverage)),
+    leverage: Number(trade.leverage),
     closedPct: trade.fixes.reduce((acc, f) => acc + Number(f.sizePct), 0),
     createdAt: trade.createdAt.toISOString(),
   }));
@@ -51,6 +55,8 @@ export default async function DashboardPage() {
           amount: row.riskAmount,
         }))}
       />
+
+      <MarginMeter used={stats.openMargin} balance={Number(account.balance)} />
 
       <section className="grid grid-cols-2 gap-x-4 gap-y-4 border-b border-rule py-5 md:grid-cols-4">
         <Metric label="Баланс" value={money(Number(account.balance))} />

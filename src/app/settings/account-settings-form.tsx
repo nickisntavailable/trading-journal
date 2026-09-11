@@ -12,6 +12,7 @@ export function AccountSettingsForm({ account }: { account: AccountDTO }) {
   const [baseRiskPct, setBaseRiskPct] = useState(String(account.baseRiskPct));
   const [riskLimitPct, setRiskLimitPct] = useState(String(account.riskLimitPct));
   const [feeRatePct, setFeeRatePct] = useState(String(account.feeRatePct));
+  const [defaultLeverage, setDefaultLeverage] = useState(String(account.defaultLeverage));
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
   const [pending, setPending] = useState(false);
@@ -29,6 +30,7 @@ export function AccountSettingsForm({ account }: { account: AccountDTO }) {
         baseRiskPct: Number(baseRiskPct),
         riskLimitPct: Number(riskLimitPct),
         feeRatePct: Number(feeRatePct),
+        defaultLeverage: Number(defaultLeverage),
       }),
     });
 
@@ -43,8 +45,8 @@ export function AccountSettingsForm({ account }: { account: AccountDTO }) {
   }
 
   return (
-    <form onSubmit={onSubmit} className="mt-3 max-w-[420px]">
-      <div className="grid grid-cols-2 gap-3 md:grid-cols-3">
+    <form onSubmit={onSubmit} className="mt-3 max-w-[560px]">
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
         <div>
           <label htmlFor="baseRiskPct" className="block text-[11px] text-ink-soft">
             Базовый риск, %
@@ -87,13 +89,29 @@ export function AccountSettingsForm({ account }: { account: AccountDTO }) {
             className={inputClass + " mt-1"}
           />
         </div>
+        <div>
+          <label htmlFor="defaultLeverage" className="block text-[11px] text-ink-soft">
+            Плечо, ×
+          </label>
+          <input
+            id="defaultLeverage"
+            type="number"
+            step="1"
+            min="1"
+            inputMode="decimal"
+            value={defaultLeverage}
+            onChange={(e) => setDefaultLeverage(e.target.value)}
+            className={inputClass + " mt-1"}
+          />
+        </div>
       </div>
 
       <p className="mt-2 text-[11px] text-ink-soft">
         Лимит риска — потолок суммарного риска открытых позиций в процентах от баланса,
-        по нему считается бюджет на дашборде. Базовый риск и комиссия применяются только
-        к сделкам, открытым после сохранения: у уже открытых снапшот ставки и депозита
-        не меняется.
+        по нему считается бюджет на дашборде. Плечо подставляется в новую сделку по
+        умолчанию и на риск не влияет — только на маржу. Базовый риск, комиссия и плечо
+        применяются к сделкам, открытым после сохранения: у уже открытых снапшот не
+        меняется.
       </p>
 
       {error ? <p className="mt-2 text-[12px] text-short">{error}</p> : null}

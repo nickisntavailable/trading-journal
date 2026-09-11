@@ -5,6 +5,7 @@ import { useMemo, useState } from "react";
 import { money, pct } from "@/lib/format";
 import type { TradeDTO } from "@/lib/serialize";
 import {
+  margin,
   positionSize,
   riskAmount,
   validateStopDirection,
@@ -32,6 +33,7 @@ export function EditTradeForm({
   const [entryPrice, setEntryPrice] = useState(String(trade.entryPrice));
   const [stopLoss, setStopLoss] = useState(String(trade.stopLoss));
   const [riskPct, setRiskPct] = useState(String(trade.riskPct));
+  const [leverage, setLeverage] = useState(String(trade.leverage));
   const [tvLink, setTvLink] = useState(trade.tvLink ?? "");
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
@@ -44,12 +46,15 @@ export function EditTradeForm({
     if (entry <= 0 || stop <= 0 || entry === stop || risk <= 0) return null;
 
     const riskAmountValue = riskAmount(trade.depositAtEntry, risk);
+    const size = positionSize(riskAmountValue, entry, stop);
+    const lev = Number(leverage);
     return {
       risk: riskAmountValue,
-      size: positionSize(riskAmountValue, entry, stop),
+      size,
+      margin: Number.isFinite(lev) && lev > 0 ? margin(size, lev) : null,
       stopError: validateStopDirection(entry, stop, direction),
     };
-  }, [entryPrice, stopLoss, riskPct, direction, trade.depositAtEntry]);
+  }, [entryPrice, stopLoss, riskPct, leverage, direction, trade.depositAtEntry]);
 
   async function onSubmit(event: React.FormEvent) {
     event.preventDefault();
@@ -65,6 +70,7 @@ export function EditTradeForm({
         entryPrice: Number(entryPrice),
         stopLoss: Number(stopLoss),
         riskPct: Number(riskPct),
+        ...(Number(leverage) > 0 ? { leverage: Number(leverage) } : {}),
         tvLink: tvLink.trim() ? tvLink.trim() : null,
       }),
     });
@@ -153,6 +159,22 @@ export function EditTradeForm({
         </div>
 
         <div>
+          <label htmlFor="editLeverage" className="block text-[11px] text-ink-soft">
+            Плечо, ×
+          </label>
+          <input
+            id="editLeverage"
+            type="number"
+            step="1"
+            min="1"
+            inputMode="decimal"
+            value={leverage}
+            onChange={(e) => setLeverage(e.target.value)}
+            className={inputClass + " mt-1"}
+          />
+        </div>
+
+        <div>
           <label htmlFor="editEntry" className="block text-[11px] text-ink-soft">
             Цена входа
           </label>
@@ -201,8 +223,9 @@ export function EditTradeForm({
         Депозит на момент открытия <span className="num">{money(trade.depositAtEntry)}</span> и
         ставка комиссии <span className="num">{pct(trade.feeRateAtEntry)}</span> остаются
         прежними. Новый риск{" "}
-        <span className="num">{preview ? money(preview.risk) : "—"}</span>, размер позиции{" "}
-        <span className="num">{preview ? money(preview.size) : "—"}</span>.
+        <span className="num">{preview ? money(preview.risk) : "—"}</span>, позиция{" "}
+        <span className="num">{preview ? money(preview.size) : "—"}</span>, маржа{" "}
+        <span className="num">{preview?.margin != null ? money(preview.margin) : "—"}</span>.
       </p>
 
       {hasFixes ? (

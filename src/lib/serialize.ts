@@ -15,6 +15,7 @@ export type AccountDTO = {
   baseRiskPct: number;
   riskLimitPct: number;
   feeRatePct: number;
+  defaultLeverage: number;
 };
 
 export type TradeDTO = {
@@ -29,6 +30,7 @@ export type TradeDTO = {
   feeRateAtEntry: number;
   riskAmount: number;
   positionSize: number;
+  leverage: number;
   tvLink: string | null;
   status: "open" | "closed";
   createdAt: string;
@@ -66,6 +68,7 @@ export function accountToDTO(a: Account): AccountDTO {
     baseRiskPct: n(a.baseRiskPct),
     riskLimitPct: n(a.riskLimitPct),
     feeRatePct: n(a.feeRatePct),
+    defaultLeverage: n(a.defaultLeverage),
   };
 }
 
@@ -82,6 +85,7 @@ export function tradeToDTO(t: Trade): TradeDTO {
     feeRateAtEntry: n(t.feeRateAtEntry),
     riskAmount: n(t.riskAmount),
     positionSize: n(t.positionSize),
+    leverage: n(t.leverage),
     tvLink: t.tvLink,
     status: t.status === "closed" ? "closed" : "open",
     createdAt: t.createdAt.toISOString(),

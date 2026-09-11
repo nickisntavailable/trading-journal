@@ -16,6 +16,7 @@ async function main() {
       balance: "0",
       baseRiskPct: "1.00",
       riskLimitPct: "3.00",
+      defaultLeverage: "5",
       feeRatePct: "0.0600",
     },
   });

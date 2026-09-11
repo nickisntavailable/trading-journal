@@ -45,6 +45,14 @@ export function positionSize(
   return (riskAmountValue * entryPrice) / Math.abs(entryPrice - stopLoss);
 }
 
+/**
+ * Маржа — та часть депозита, что реально уходит в сделку на бирже.
+ * На риск не влияет: убыток при стопе считается от номинала.
+ */
+export function margin(positionSizeValue: number, leverage: number): number {
+  return leverage > 0 ? positionSizeValue / leverage : positionSizeValue;
+}
+
 export function fixGrossPnL(
   positionSizeValue: number,
   fixSizePct: number,

@@ -43,6 +43,7 @@ const patchSchema = z.object({
   entryPrice: z.number().finite().positive().optional(),
   stopLoss: z.number().finite().positive().optional(),
   riskPct: z.number().finite().gt(0).max(100).optional(),
+  leverage: z.number().finite().gt(0).max(500).optional(),
   tvLink: z.string().trim().url().max(500).nullable().optional(),
 });
 
@@ -81,6 +82,7 @@ export async function PATCH(
       data: {
         ...(body.pair !== undefined ? { pair: body.pair.toUpperCase() } : {}),
         ...(body.tvLink !== undefined ? { tvLink: body.tvLink || null } : {}),
+        ...(body.leverage !== undefined ? { leverage: body.leverage } : {}),
         direction,
         entryPrice,
         stopLoss,

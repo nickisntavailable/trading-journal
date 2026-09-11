@@ -9,7 +9,7 @@ import { getAccount } from "@/lib/account";
 import { dateTime, money, pct, price, rMultiple, signedMoney, signedPct } from "@/lib/format";
 import { prisma } from "@/lib/prisma";
 import { fixToDTO, tradeToDTO } from "@/lib/serialize";
-import { stopDistancePct } from "@/lib/trading-math";
+import { margin, stopDistancePct } from "@/lib/trading-math";
 
 export const dynamic = "force-dynamic";
 
@@ -46,7 +46,7 @@ export default async function TradePage({
         </span>
       </div>
 
-      <section className="grid grid-cols-2 gap-x-4 gap-y-4 border-b border-rule py-4 md:grid-cols-5">
+      <section className="grid grid-cols-2 gap-x-4 gap-y-4 border-b border-rule py-4 md:grid-cols-6">
         <Param label="Вход" value={price(trade.entryPrice)} />
         <Param label="Стоп-лосс" value={price(trade.stopLoss)} />
         <Param
@@ -54,7 +54,11 @@ export default async function TradePage({
           value={pct(stopDistancePct(trade.entryPrice, trade.stopLoss))}
         />
         <Param label="Риск" value={`${money(trade.riskAmount)} · ${pct(trade.riskPct)}`} />
-        <Param label="Размер позиции" value={money(trade.positionSize)} />
+        <Param label="Позиция" value={money(trade.positionSize)} />
+        <Param
+          label={`Маржа · ${trade.leverage}×`}
+          value={money(margin(trade.positionSize, trade.leverage))}
+        />
       </section>
 
       {trade.status === "open" ? (

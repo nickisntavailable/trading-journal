@@ -50,6 +50,7 @@ const createSchema = z.object({
   entryPrice: z.number().finite().positive(),
   stopLoss: z.number().finite().positive(),
   riskPct: z.number().finite().gt(0).max(100),
+  leverage: z.number().finite().gt(0).max(500).optional(),
   tvLink: z.string().trim().url().max(500).optional().or(z.literal("")),
 });
 
@@ -77,6 +78,7 @@ export async function POST(request: Request) {
       body.entryPrice,
       body.stopLoss,
     );
+    const leverage = body.leverage ?? Number(account.defaultLeverage);
 
     const trade = await prisma.trade.create({
       data: {
@@ -90,6 +92,7 @@ export async function POST(request: Request) {
         feeRateAtEntry,
         riskAmount: riskAmountValue,
         positionSize: positionSizeValue,
+        leverage,
         tvLink: body.tvLink ? body.tvLink : null,
         status: "open",
       },

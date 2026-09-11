@@ -11,6 +11,7 @@ import { money, pct } from "@/lib/format";
 import type { AccountDTO } from "@/lib/serialize";
 import { parseTradingViewLink } from "@/lib/tradingview-link";
 import {
+  margin,
   positionSize,
   riskAmount,
   stopDistancePct,
@@ -29,6 +30,7 @@ export function NewTradeForm({ account }: { account: AccountDTO }) {
   const [entryPrice, setEntryPrice] = useState("");
   const [stopLoss, setStopLoss] = useState("");
   const [riskPct, setRiskPct] = useState(account.baseRiskPct);
+  const [leverage, setLeverage] = useState(String(account.defaultLeverage));
   const [tvLink, setTvLink] = useState("");
   const [parsed, setParsed] = useState<ParsedScreenshot | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -50,13 +52,22 @@ export function NewTradeForm({ account }: { account: AccountDTO }) {
     if (entry <= 0 || stop <= 0 || entry === stop) return null;
 
     const risk = riskAmount(account.balance, riskPct);
+    const size = positionSize(risk, entry, stop);
+    const lev = Number(leverage);
+    const marginValue = Number.isFinite(lev) && lev > 0 ? margin(size, lev) : null;
     return {
       risk,
-      size: positionSize(risk, entry, stop),
+      size,
+      margin: marginValue,
+      // Маржа больше баланса — биржа такую сделку не откроет.
+      marginError:
+        marginValue !== null && marginValue > account.balance
+          ? `Маржа ${money(marginValue)} больше баланса — при таком плече сделка не откроется`
+          : null,
       distancePct: stopDistancePct(entry, stop),
       stopError: validateStopDirection(entry, stop, direction),
     };
-  }, [entryPrice, stopLoss, riskPct, direction, account.balance]);
+  }, [entryPrice, stopLoss, riskPct, direction, leverage, account.balance]);
 
   function applyParsed(result: ParsedScreenshot) {
     if (result.pair) setPair(result.pair.toUpperCase());
@@ -141,6 +152,7 @@ export function NewTradeForm({ account }: { account: AccountDTO }) {
         entryPrice: entry,
         stopLoss: stop,
         riskPct,
+        ...(Number(leverage) > 0 ? { leverage: Number(leverage) } : {}),
         ...(tvLink.trim() ? { tvLink: tvLink.trim() } : {}),
       }),
     });
@@ -299,19 +311,41 @@ export function NewTradeForm({ account }: { account: AccountDTO }) {
           onChange={(e) => setRiskPct(Number(e.target.value))}
           className="mt-2 w-full accent-[var(--btn)]"
         />
-        <p className="mt-1 text-[11px] text-ink-soft">
-          базовый риск аккаунта — <span className="num">{pct(account.baseRiskPct)}</span>
-        </p>
+        <div className="mt-2 flex items-center justify-between gap-4">
+          <p className="text-[11px] text-ink-soft">
+            базовый риск аккаунта — <span className="num">{pct(account.baseRiskPct)}</span>
+          </p>
+          <label className="flex items-center gap-2 text-[11px] text-ink-soft">
+            Плечо
+            <input
+              type="number"
+              step="1"
+              min="1"
+              inputMode="decimal"
+              value={leverage}
+              onChange={(e) => setLeverage(e.target.value)}
+              className="num w-16 rounded-[3px] border border-rule bg-white px-2 py-1 text-[13px] text-ink outline-none focus:border-ink"
+            />
+            ×
+          </label>
+        </div>
       </div>
 
-      <div className="grid grid-cols-3 gap-4 border-b border-rule py-4">
+      <div className="grid grid-cols-2 gap-4 border-b border-rule py-4 md:grid-cols-4">
         <Readout label="Риск, $" value={preview ? money(preview.risk) : "—"} />
-        <Readout label="Размер позиции, $" value={preview ? money(preview.size) : "—"} />
+        <Readout label="Позиция, $" value={preview ? money(preview.size) : "—"} />
+        <Readout
+          label={`Маржа при ${Number(leverage) > 0 ? leverage : "—"}×`}
+          value={preview?.margin !== null && preview?.margin !== undefined ? money(preview.margin) : "—"}
+        />
         <Readout label="Дистанция" value={preview ? pct(preview.distancePct) : "—"} />
       </div>
 
       {preview?.stopError ? (
         <p className="mt-3 text-[12px] text-short">{preview.stopError}</p>
+      ) : null}
+      {preview?.marginError ? (
+        <p className="mt-3 text-[12px] text-amber">{preview.marginError}</p>
       ) : null}
       {error ? <p className="mt-3 text-[12px] text-short">{error}</p> : null}
 

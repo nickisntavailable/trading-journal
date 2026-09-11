@@ -1,7 +1,10 @@
 import { prisma } from "@/lib/prisma";
+import { margin } from "@/lib/trading-math";
 
 export type DashboardStats = {
   openRiskAmount: number;
+  /** Сумма маржи открытых позиций — сколько депозита реально в сделках. */
+  openMargin: number;
   pnl30d: number;
   winRate: number | null;
   closedCount: number;
@@ -12,10 +15,10 @@ export async function getDashboardStats(accountId: string): Promise<DashboardSta
   const since = new Date();
   since.setDate(since.getDate() - 30);
 
-  const [openRisk, pnl30d, closedTotal, closedWins] = await Promise.all([
-    prisma.trade.aggregate({
+  const [openTrades, pnl30d, closedTotal, closedWins] = await Promise.all([
+    prisma.trade.findMany({
       where: { accountId, status: "open" },
-      _sum: { riskAmount: true },
+      select: { riskAmount: true, positionSize: true, leverage: true },
     }),
     prisma.trade.aggregate({
       where: { accountId, status: "closed", closedAt: { gte: since } },
@@ -27,8 +30,15 @@ export async function getDashboardStats(accountId: string): Promise<DashboardSta
     }),
   ]);
 
+  const openRiskAmount = openTrades.reduce((acc, t) => acc + Number(t.riskAmount), 0);
+  const openMargin = openTrades.reduce(
+    (acc, t) => acc + margin(Number(t.positionSize), Number(t.leverage)),
+    0,
+  );
+
   return {
-    openRiskAmount: Number(openRisk._sum.riskAmount ?? 0),
+    openRiskAmount,
+    openMargin,
     pnl30d: Number(pnl30d._sum.netPnL ?? 0),
     winRate: closedTotal > 0 ? (closedWins / closedTotal) * 100 : null,
     closedCount: closedTotal,

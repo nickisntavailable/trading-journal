@@ -13,6 +13,7 @@ model Account {
   baseRiskPct   Decimal        @db.Decimal(5, 2)
   riskLimitPct  Decimal        @default(3.00) @db.Decimal(5, 2) // потолок суммарного риска открытых позиций, % от баланса
   feeRatePct    Decimal        @db.Decimal(6, 4) // напр. 0.0600 = 0.06%
+  defaultLeverage Decimal      @default(5) @db.Decimal(5, 2) // плечо по умолчанию для новых сделок
   createdAt     DateTime       @default(now())
   updatedAt     DateTime       @updatedAt
   trades        Trade[]
@@ -44,7 +45,8 @@ model Trade {
   depositAtEntry Decimal   @db.Decimal(18, 2) // снапшот баланса на момент открытия
   feeRateAtEntry Decimal   @db.Decimal(6, 4) // снапшот ставки комиссии
   riskAmount     Decimal   @db.Decimal(18, 2) // = depositAtEntry * riskPct / 100
-  positionSize   Decimal   @db.Decimal(18, 2)
+  positionSize   Decimal   @db.Decimal(18, 2) // номинал позиции; на риск плечо не влияет
+  leverage       Decimal   @default(5) @db.Decimal(5, 2) // маржа = positionSize / leverage
   tvLink         String?
   status         String    @default("open") // "open" | "closed"
   createdAt      DateTime  @default(now())
