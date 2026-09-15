@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { dateTime, money, price, signedMoney } from "@/lib/format";
 import type { FixDTO } from "@/lib/serialize";
+import { SwipeToDelete } from "@/components/swipe-to-delete";
 
 const inputClass =
   "num w-full rounded-[3px] border border-rule bg-white px-2.5 py-2 text-[14px] outline-none focus:border-ink";
@@ -137,41 +138,45 @@ export function FixesPanel({
             ))}
           </div>
 
-          {/* Мобильная: строка-карточка, ничего не сжимается и не вылезает за экран */}
+          {/* Мобильная: строка-карточка; последняя фиксация удаляется свайпом влево */}
           <div className="md:hidden">
             {fixes.map((fix) => (
-              <div key={fix.id} className="border-b border-rule py-2.5 first:border-t">
-                <div className="flex items-baseline justify-between gap-3">
-                  <span className="num text-[14px]">
-                    {price(fix.price)}
-                    <span className="text-[12px] text-ink-soft"> · {fix.sizePct.toFixed(2)}%</span>
-                  </span>
-                  <span className={"num text-[14px] " + toneOf(fix.netPnL)}>
-                    {signedMoney(fix.netPnL)}
-                  </span>
+              <SwipeToDelete
+                key={fix.id}
+                enabled={status === "open" && fix.id === lastFixId}
+                disabled={pending}
+                onDelete={() => removeFix(fix.id)}
+                className="border-b border-rule first:border-t"
+              >
+                <div className="py-2.5">
+                  <div className="flex items-baseline justify-between gap-3">
+                    <span className="num text-[14px]">
+                      {price(fix.price)}
+                      <span className="text-[12px] text-ink-soft"> · {fix.sizePct.toFixed(2)}%</span>
+                    </span>
+                    <span className={"num text-[14px] " + toneOf(fix.netPnL)}>
+                      {signedMoney(fix.netPnL)}
+                    </span>
+                  </div>
+                  <div className="mt-0.5 flex items-baseline justify-between gap-3 text-[12px] text-ink-soft">
+                    <span className="num">{dateTime(fix.createdAt)}</span>
+                    <span>
+                      <span className="num">{money((positionSize * fix.sizePct) / 100)}</span>
+                      {" · "}
+                      {fix.type === "stop" ? "стоп" : "ручная"}
+                    </span>
+                  </div>
                 </div>
-                <div className="mt-0.5 flex items-baseline justify-between gap-3 text-[12px] text-ink-soft">
-                  <span className="num">{dateTime(fix.createdAt)}</span>
-                  <span>
-                    <span className="num">{money((positionSize * fix.sizePct) / 100)}</span>
-                    {" · "}
-                    {fix.type === "stop" ? "стоп" : "ручная"}
-                    {status === "open" && fix.id === lastFixId ? (
-                      <>
-                        {" · "}
-                        <DeleteFixButton onClick={() => removeFix(fix.id)} disabled={pending} />
-                      </>
-                    ) : null}
-                  </span>
-                </div>
-              </div>
+              </SwipeToDelete>
             ))}
           </div>
-          <p className="mt-2 text-[11px] text-ink-soft">
-            {fixes.length > 0 && status === "open"
-              ? "Удалить можно только последнюю фиксацию; у закрытой сделки история неизменна."
-              : null}
-          </p>
+          {fixes.length > 0 && status === "open" ? (
+            <p className="mt-2 text-[11px] text-ink-soft">
+              <span className="md:hidden">Смахни последнюю фиксацию влево, чтобы удалить; </span>
+              <span className="hidden md:inline">Удалить можно только последнюю фиксацию; </span>
+              у закрытой сделки история неизменна.
+            </p>
+          ) : null}
         </div>
       )}
 
