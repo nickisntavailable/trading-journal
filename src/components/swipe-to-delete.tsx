@@ -2,13 +2,14 @@
 
 import { useRef, useState } from "react";
 
-const ACTION_WIDTH = 72;
+const ACTION_WIDTH = 56;
 const DRAG_THRESHOLD = 6;
 
 /**
- * Свайп влево открывает красную зону с корзиной; тап по ней удаляет.
- * Без библиотек: три touch-события и transform. `touch-action: pan-y` отдаёт
- * вертикальный скролл браузеру, горизонтальное движение обрабатываем сами.
+ * Свайп влево «поджимает» строку справа: содержимое не уезжает и не режется,
+ * а уплотняется, и в освободившемся месте появляется корзина за тонкой линией.
+ * Тап по корзине удаляет, тап по строке — возвращает. Без библиотек: три
+ * touch-события; `touch-action: pan-y` отдаёт вертикальный скролл браузеру.
  */
 export function SwipeToDelete({
   enabled,
@@ -60,6 +61,10 @@ export function SwipeToDelete({
     setOffset(offset <= -ACTION_WIDTH / 2 ? -ACTION_WIDTH : 0);
   }
 
+  // 0 — закрыто, 1 — корзина полностью видна
+  const progress = Math.min(1, Math.max(0, -offset / ACTION_WIDTH));
+  const transition = dragging ? "none" : "160ms ease-out";
+
   return (
     <div className={"relative overflow-hidden " + (className ?? "")}>
       <button
@@ -68,8 +73,14 @@ export function SwipeToDelete({
         disabled={disabled}
         aria-label="Удалить фиксацию"
         tabIndex={open ? 0 : -1}
-        className="absolute inset-y-0 right-0 flex items-center justify-center bg-short text-white disabled:opacity-40"
-        style={{ width: ACTION_WIDTH }}
+        className="absolute inset-y-0 right-0 flex items-center justify-center border-l border-rule text-short disabled:opacity-40"
+        style={{
+          width: ACTION_WIDTH,
+          opacity: progress,
+          transform: `translateX(${(1 - progress) * ACTION_WIDTH}px)`,
+          transition: `opacity ${transition}, transform ${transition}`,
+          pointerEvents: open ? "auto" : "none",
+        }}
       >
         <TrashIcon />
       </button>
@@ -82,10 +93,9 @@ export function SwipeToDelete({
         onClick={() => {
           if (open) setOffset(0);
         }}
-        className="relative bg-bg"
         style={{
-          transform: `translateX(${offset}px)`,
-          transition: dragging ? "none" : "transform 160ms ease-out",
+          paddingRight: progress * (ACTION_WIDTH + 12),
+          transition: `padding-right ${transition}`,
           touchAction: "pan-y",
         }}
       >
