@@ -2,11 +2,14 @@
 
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-import { dateTime, money, price } from "@/lib/format";
+import { dateTime, money, price, signedMoney } from "@/lib/format";
 import type { FixDTO } from "@/lib/serialize";
 
 const inputClass =
   "num w-full rounded-[3px] border border-rule bg-white px-2.5 py-2 text-[14px] outline-none focus:border-ink";
+
+const toneOf = (value: number) =>
+  value > 0 ? "text-long" : value < 0 ? "text-short" : "";
 
 function DeleteFixButton({ onClick, disabled }: { onClick: () => void; disabled: boolean }) {
   return (
@@ -30,7 +33,7 @@ export function FixesPanel({
 }: {
   tradeId: string;
   status: "open" | "closed";
-  fixes: FixDTO[];
+  fixes: (FixDTO & { netPnL: number })[];
   closedPct: number;
   positionSize: number;
 }) {
@@ -103,23 +106,27 @@ export function FixesPanel({
         <div className="mt-3">
           {/* Десктоп: табличные колонки */}
           <div className="hidden md:block">
-            <div className="grid grid-cols-[1fr_0.8fr_0.8fr_1fr_auto] gap-3 border-y border-rule py-1.5 text-[11px] text-ink-soft">
+            <div className="grid grid-cols-[1fr_0.8fr_0.7fr_0.9fr_0.9fr_auto] gap-3 border-y border-rule py-1.5 text-[11px] text-ink-soft">
               <span>Дата</span>
               <span className="text-right">Цена</span>
               <span className="text-right">% позиции</span>
               <span className="text-right">Объём, $</span>
+              <span className="text-right">P/L, $</span>
               <span className="w-12" />
             </div>
             {fixes.map((fix) => (
               <div
                 key={fix.id}
-                className="grid grid-cols-[1fr_0.8fr_0.8fr_1fr_auto] items-center gap-3 border-b border-rule py-2 text-[13px]"
+                className="grid grid-cols-[1fr_0.8fr_0.7fr_0.9fr_0.9fr_auto] items-center gap-3 border-b border-rule py-2 text-[13px]"
               >
                 <span className="num text-ink-soft">{dateTime(fix.createdAt)}</span>
                 <span className="num text-right">{price(fix.price)}</span>
                 <span className="num text-right">{fix.sizePct.toFixed(2)}%</span>
                 <span className="num text-right">
                   {money((positionSize * fix.sizePct) / 100)}
+                </span>
+                <span className={"num text-right " + toneOf(fix.netPnL)}>
+                  {signedMoney(fix.netPnL)}
                 </span>
                 <span className="w-12 text-right">
                   {status === "open" && fix.id === lastFixId ? (
@@ -135,15 +142,19 @@ export function FixesPanel({
             {fixes.map((fix) => (
               <div key={fix.id} className="border-b border-rule py-2.5 first:border-t">
                 <div className="flex items-baseline justify-between gap-3">
-                  <span className="num text-[14px]">{price(fix.price)}</span>
-                  <span className="num text-[13px]">
-                    {fix.sizePct.toFixed(2)}%
-                    <span className="text-ink-soft"> · {money((positionSize * fix.sizePct) / 100)}</span>
+                  <span className="num text-[14px]">
+                    {price(fix.price)}
+                    <span className="text-[12px] text-ink-soft"> · {fix.sizePct.toFixed(2)}%</span>
+                  </span>
+                  <span className={"num text-[14px] " + toneOf(fix.netPnL)}>
+                    {signedMoney(fix.netPnL)}
                   </span>
                 </div>
                 <div className="mt-0.5 flex items-baseline justify-between gap-3 text-[12px] text-ink-soft">
                   <span className="num">{dateTime(fix.createdAt)}</span>
                   <span>
+                    <span className="num">{money((positionSize * fix.sizePct) / 100)}</span>
+                    {" · "}
                     {fix.type === "stop" ? "стоп" : "ручная"}
                     {status === "open" && fix.id === lastFixId ? (
                       <>

@@ -34,6 +34,8 @@ export function NewTradeForm({ account }: { account: AccountDTO }) {
   const [tvLink, setTvLink] = useState("");
   const [parsed, setParsed] = useState<ParsedScreenshot | null>(null);
   const [error, setError] = useState<string | null>(null);
+  // Поля, на которые ругнулись при отправке: подсвечиваются, пока не заполнены.
+  const [missing, setMissing] = useState<Set<string>>(new Set());
   const [pending, setPending] = useState(false);
   const [parsingSnapshot, setParsingSnapshot] = useState(false);
   const [snapshotError, setSnapshotError] = useState<string | null>(null);
@@ -136,9 +138,29 @@ export function NewTradeForm({ account }: { account: AccountDTO }) {
 
     const entry = Number(entryPrice);
     const stop = Number(stopLoss);
+
+    // Кнопка всегда активна: вместо молчаливого disabled — перечисляем, чего не
+    // хватает, подсвечиваем поля и ставим курсор в первое из них.
+    const problems: { id: string; label: string }[] = [];
+    if (pair.trim().length === 0) problems.push({ id: "pair", label: "пара" });
+    if (!entryPrice.trim() || !Number.isFinite(entry) || entry <= 0) {
+      problems.push({ id: "entryPrice", label: "цена входа" });
+    }
+    if (!stopLoss.trim() || !Number.isFinite(stop) || stop <= 0) {
+      problems.push({ id: "stopLoss", label: "стоп-лосс" });
+    }
+    if (problems.length > 0) {
+      setMissing(new Set(problems.map((p) => p.id)));
+      setError(`Не заполнено: ${problems.map((p) => p.label).join(", ")}`);
+      document.getElementById(problems[0].id)?.focus();
+      return;
+    }
+    setMissing(new Set());
+
     const stopError = validateStopDirection(entry, stop, direction);
     if (stopError) {
       setError(stopError);
+      document.getElementById("stopLoss")?.focus();
       return;
     }
 
@@ -168,8 +190,9 @@ export function NewTradeForm({ account }: { account: AccountDTO }) {
     router.refresh();
   }
 
-  const canSubmit =
-    pair.trim().length > 0 && preview !== null && !preview.stopError && !pending;
+  // Подсветка поля снимается, как только в него что-то ввели.
+  const fieldClass = (id: string, filled: boolean) =>
+    inputClass + " mt-1" + (missing.has(id) && !filled ? " border-short" : "");
 
   return (
     <form onSubmit={onSubmit} className="mt-4 max-w-[560px]">
@@ -229,7 +252,7 @@ export function NewTradeForm({ account }: { account: AccountDTO }) {
             value={pair}
             onChange={(e) => setPair(e.target.value.toUpperCase())}
             placeholder="BTCUSDT"
-            className={inputClass + " mt-1"}
+            className={fieldClass("pair", pair.trim().length > 0)}
           />
         </div>
 
@@ -274,7 +297,7 @@ export function NewTradeForm({ account }: { account: AccountDTO }) {
             inputMode="decimal"
             value={entryPrice}
             onChange={(e) => setEntryPrice(e.target.value)}
-            className={inputClass + " mt-1"}
+            className={fieldClass("entryPrice", entryPrice.trim().length > 0)}
           />
         </div>
 
@@ -289,7 +312,7 @@ export function NewTradeForm({ account }: { account: AccountDTO }) {
             inputMode="decimal"
             value={stopLoss}
             onChange={(e) => setStopLoss(e.target.value)}
-            className={inputClass + " mt-1"}
+            className={fieldClass("stopLoss", stopLoss.trim().length > 0)}
           />
         </div>
       </div>
@@ -351,7 +374,7 @@ export function NewTradeForm({ account }: { account: AccountDTO }) {
 
       <button
         type="submit"
-        disabled={!canSubmit}
+        disabled={pending}
         className="mt-5 rounded-[3px] bg-btn px-4 py-2 text-[13px] font-medium text-white disabled:opacity-40"
       >
         {pending ? "Открываю…" : "Открыть сделку"}

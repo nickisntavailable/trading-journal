@@ -9,7 +9,7 @@ import { getAccount } from "@/lib/account";
 import { dateTime, money, pct, price, rMultiple, signedMoney, signedPct } from "@/lib/format";
 import { prisma } from "@/lib/prisma";
 import { fixToDTO, tradeToDTO } from "@/lib/serialize";
-import { margin, stopDistancePct } from "@/lib/trading-math";
+import { fixNetPnL, margin, realizedSoFar, stopDistancePct } from "@/lib/trading-math";
 
 export const dynamic = "force-dynamic";
 
@@ -30,6 +30,13 @@ export default async function TradePage({
   const trade = tradeToDTO(row);
   const fixes = row.fixes.map(fixToDTO);
   const closedPct = fixes.reduce((acc, f) => acc + f.sizePct, 0);
+
+  // Результат по каждой фиксации и по уже закрытой части — по тем же формулам,
+  // что и итог сделки. Открытый остаток сюда не входит: рыночной цены у нас нет.
+  const fixesWithPnL = fixes.map((fix) => ({ ...fix, netPnL: fixNetPnL(trade, fix) }));
+  const realized = realizedSoFar(trade, fixes);
+  const realizedTone =
+    realized.netPnL > 0 ? "text-long" : realized.netPnL < 0 ? "text-short" : "text-ink";
 
   return (
     <AppShell>
@@ -75,6 +82,18 @@ export default async function TradePage({
         <div className="mt-2">
           <ProgressBar value={closedPct} />
         </div>
+        {trade.status === "open" && fixes.length > 0 ? (
+          <div className="mt-2 flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
+            <span className="text-[11px] text-ink-soft">
+              Реализовано по закрытым {closedPct.toFixed(0)}%
+              {closedPct < 100 ? " · остаток без рыночной цены не считается" : ""}
+            </span>
+            <span className={"num text-[14px] " + realizedTone}>
+              {signedMoney(realized.netPnL)}
+              <span className="text-[12px] text-ink-soft"> · {rMultiple(realized.rMultiple)}</span>
+            </span>
+          </div>
+        ) : null}
       </section>
 
       {trade.status === "closed" ? <ResultBlock trade={trade} /> : null}
@@ -82,7 +101,7 @@ export default async function TradePage({
       <FixesPanel
         tradeId={trade.id}
         status={trade.status}
-        fixes={fixes}
+        fixes={fixesWithPnL}
         closedPct={closedPct}
         positionSize={trade.positionSize}
       />

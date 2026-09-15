@@ -79,6 +79,46 @@ export function entryFee(positionSizeValue: number, feeRatePct: number): number 
 
 const sum = (values: number[]) => values.reduce((acc, v) => acc + v, 0);
 
+/**
+ * Чистый результат одной фиксации: её gross минус комиссия выхода минус
+ * пропорциональная доля комиссии входа. Сумма по всем фиксациям при 100%
+ * совпадает с netPnL из closeTrade.
+ */
+export function fixNetPnL(
+  trade: Pick<TradeMathInput, "entryPrice" | "direction" | "positionSize" | "feeRateAtEntry">,
+  fix: FixInput,
+): number {
+  const gross = fixGrossPnL(
+    trade.positionSize,
+    fix.sizePct,
+    fix.price,
+    trade.entryPrice,
+    trade.direction,
+  );
+  const exitFee = fixExitFee(trade.positionSize, fix.sizePct, trade.feeRateAtEntry);
+  const entryFeeShare = (entryFee(trade.positionSize, trade.feeRateAtEntry) * fix.sizePct) / 100;
+  return gross - exitFee - entryFeeShare;
+}
+
+/**
+ * Что уже зафиксировано по открытой сделке. Незакрытая часть позиции сюда не
+ * входит: без рыночной цены её результат неизвестен.
+ */
+export function realizedSoFar(
+  trade: Pick<
+    TradeMathInput,
+    "entryPrice" | "direction" | "positionSize" | "feeRateAtEntry" | "riskAmount"
+  >,
+  fixes: FixInput[],
+): { netPnL: number; rMultiple: number; closedPct: number } {
+  const netPnL = sum(fixes.map((fix) => fixNetPnL(trade, fix)));
+  return {
+    netPnL,
+    rMultiple: trade.riskAmount !== 0 ? netPnL / trade.riskAmount : 0,
+    closedPct: sum(fixes.map((fix) => fix.sizePct)),
+  };
+}
+
 /** Вызывается, когда сумма sizePct всех фиксаций достигла 100. */
 export function closeTrade(trade: TradeMathInput, fixes: FixInput[]): CloseResult {
   const grossPnL = sum(
