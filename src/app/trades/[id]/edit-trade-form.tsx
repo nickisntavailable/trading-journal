@@ -1,8 +1,8 @@
 "use client";
 
-import { useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
 import { money, pct } from "@/lib/format";
+import { useUpdateTrade } from "@/lib/query/trade";
 import type { TradeDTO } from "@/lib/serialize";
 import {
   margin,
@@ -26,7 +26,7 @@ export function EditTradeForm({
   trade: TradeDTO;
   hasFixes: boolean;
 }) {
-  const router = useRouter();
+  const update = useUpdateTrade(trade.id);
   const [open, setOpen] = useState(false);
   const [pair, setPair] = useState(trade.pair);
   const [direction, setDirection] = useState<Direction>(trade.direction);
@@ -36,7 +36,7 @@ export function EditTradeForm({
   const [leverage, setLeverage] = useState(String(trade.leverage));
   const [tvLink, setTvLink] = useState(trade.tvLink ?? "");
   const [error, setError] = useState<string | null>(null);
-  const [pending, setPending] = useState(false);
+  const pending = update.isPending;
 
   const preview = useMemo(() => {
     const entry = Number(entryPrice);
@@ -56,15 +56,11 @@ export function EditTradeForm({
     };
   }, [entryPrice, stopLoss, riskPct, leverage, direction, trade.depositAtEntry]);
 
-  async function onSubmit(event: React.FormEvent) {
+  function onSubmit(event: React.FormEvent) {
     event.preventDefault();
     setError(null);
-    setPending(true);
-
-    const response = await fetch(`/api/trades/${trade.id}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
+    update.mutate(
+      {
         pair: pair.trim(),
         direction,
         entryPrice: Number(entryPrice),
@@ -72,18 +68,13 @@ export function EditTradeForm({
         riskPct: Number(riskPct),
         ...(Number(leverage) > 0 ? { leverage: Number(leverage) } : {}),
         tvLink: tvLink.trim() ? tvLink.trim() : null,
-      }),
-    });
-
-    const data = await response.json().catch(() => ({}));
-    setPending(false);
-    if (!response.ok) {
-      setError(data.error ?? "Не удалось сохранить");
-      return;
-    }
-
-    setOpen(false);
-    router.refresh();
+      },
+      {
+        // Ответ сервера уже лёг в кеш — страница перерисуется сама.
+        onSuccess: () => setOpen(false),
+        onError: (e) => setError(e.message),
+      },
+    );
   }
 
   if (!open) {

@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { IBM_Plex_Sans, IBM_Plex_Mono } from "next/font/google";
 import "./globals.css";
+import { QueryProvider } from "@/lib/query/provider";
 
 const plexSans = IBM_Plex_Sans({
   subsets: ["latin", "cyrillic"],
@@ -32,7 +33,9 @@ export default function RootLayout({
 }: Readonly<{ children: React.ReactNode }>) {
   return (
     <html lang="ru" className={`${plexSans.variable} ${plexMono.variable}`}>
-      <body className="min-h-dvh bg-bg text-ink">{children}</body>
+      <body className="min-h-dvh bg-bg text-ink">
+        <QueryProvider>{children}</QueryProvider>
+      </body>
     </html>
   );
 }

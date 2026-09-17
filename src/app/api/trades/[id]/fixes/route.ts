@@ -7,6 +7,9 @@ import { handleError, notFound } from "@/lib/api";
 import { closeTrade, type Direction } from "@/lib/trading-math";
 
 const bodySchema = z.object({
+  // id генерирует клиент (uuid): оптимистичный UI показывает строку сразу, а
+  // повтор запроса — двойной тап, ретрай на плохой сети — не создаёт дубль.
+  id: z.string().uuid().optional(),
   price: z.number().finite().positive(),
   sizePct: z.number().finite().gt(0).max(100),
   type: z.enum(["manual", "stop"]),
@@ -39,6 +42,13 @@ export async function POST(
         include: { fixes: true },
       });
       if (!trade) throw new ApiError("Сделка не найдена", 404);
+
+      // Идемпотентность: такая фиксация уже записана — отдаём её как есть.
+      if (body.id) {
+        const existing = trade.fixes.find((f) => f.id === body.id);
+        if (existing) return { trade, fix: existing, closed: trade.status === "closed" };
+      }
+
       if (trade.status === "closed") {
         throw new ApiError("Сделка уже закрыта — фиксации не добавляются", 400);
       }
@@ -54,6 +64,7 @@ export async function POST(
 
       const fix = await tx.fix.create({
         data: {
+          ...(body.id ? { id: body.id } : {}),
           tradeId: trade.id,
           price: body.price,
           sizePct: body.sizePct,

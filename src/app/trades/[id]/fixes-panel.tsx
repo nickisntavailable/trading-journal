@@ -1,8 +1,8 @@
 "use client";
 
-import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { dateTime, money, price, signedMoney } from "@/lib/format";
+import type { useAddFix, useDeleteFix } from "@/lib/query/trade";
 import type { FixDTO } from "@/lib/serialize";
 import { SwipeToDelete } from "@/components/swipe-to-delete";
 
@@ -25,25 +25,29 @@ function DeleteFixButton({ onClick, disabled }: { onClick: () => void; disabled:
   );
 }
 
+/**
+ * Панель фиксаций поверх оптимистичных мутаций: строка появляется и исчезает
+ * сразу, без ожидания. Если сервер отверг — Query откатывает кеш, а здесь
+ * остаётся тонкая полоска с причиной и кнопкой «Повторить».
+ */
 export function FixesPanel({
-  tradeId,
   status,
   fixes,
   closedPct,
   positionSize,
+  addFix,
+  deleteFix,
 }: {
-  tradeId: string;
   status: "open" | "closed";
   fixes: (FixDTO & { netPnL: number })[];
   closedPct: number;
   positionSize: number;
+  addFix: ReturnType<typeof useAddFix>;
+  deleteFix: ReturnType<typeof useDeleteFix>;
 }) {
-  const router = useRouter();
   const [fixPrice, setFixPrice] = useState("");
   const [sizePct, setSizePct] = useState("");
   const [type, setType] = useState<"manual" | "stop">("manual");
-  const [error, setError] = useState<string | null>(null);
-  const [pending, setPending] = useState(false);
 
   const remainingPct = Math.max(0, 100 - closedPct);
   const lastFixId = fixes.length > 0 ? fixes[fixes.length - 1].id : null;
@@ -53,47 +57,54 @@ export function FixesPanel({
   const remainder = Number(remainingPct.toFixed(2));
   const quickSizes = [25, 50, 75].filter((value) => value < remainder);
 
-  async function addFix(event: React.FormEvent) {
+  // Удаление не блокирует добавление и наоборот — но в момент отката
+  // от ошибки лучше не дать нажать второй раз на то же самое.
+  const pending = deleteFix.isPending;
+
+  const [formError, setFormError] = useState<string | null>(null);
+
+  function submitFix(event: React.FormEvent) {
     event.preventDefault();
-    setError(null);
-    setPending(true);
-
-    const response = await fetch(`/api/trades/${tradeId}/fixes`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        price: Number(fixPrice),
-        sizePct: Number(sizePct),
+    const priceValue = Number(fixPrice);
+    const pctValue = Number(sizePct);
+    if (!Number.isFinite(priceValue) || priceValue <= 0) {
+      setFormError("Цена должна быть больше нуля");
+      return;
+    }
+    if (!Number.isFinite(pctValue) || pctValue <= 0) {
+      setFormError("Доля позиции должна быть больше нуля");
+      return;
+    }
+    setFormError(null);
+    addFix.mutate(
+      {
+        id: crypto.randomUUID(),
+        price: priceValue,
+        sizePct: pctValue,
         type,
-      }),
-    });
-
-    const data = await response.json().catch(() => ({}));
-    setPending(false);
-    if (!response.ok) {
-      setError(data.error ?? "Не удалось добавить фиксацию");
-      return;
-    }
-
-    setFixPrice("");
-    setSizePct("");
-    router.refresh();
+      },
+      {
+        // Поля чистим только при успехе: после ошибки значения нужны для «Повторить».
+        onSuccess: () => {
+          setFixPrice("");
+          setSizePct("");
+        },
+      },
+    );
   }
 
-  async function removeFix(fixId: string) {
-    setError(null);
-    setPending(true);
-    const response = await fetch(`/api/trades/${tradeId}/fixes/${fixId}`, {
-      method: "DELETE",
-    });
-    const data = await response.json().catch(() => ({}));
-    setPending(false);
-    if (!response.ok) {
-      setError(data.error ?? "Не удалось удалить фиксацию");
-      return;
-    }
-    router.refresh();
+  function removeFix(fixId: string) {
+    deleteFix.mutate(fixId);
   }
+
+  // Последняя неудача — что именно и с какими данными, чтобы повторить в один тап.
+  const failure = formError
+    ? { message: formError, retry: null }
+    : addFix.isError
+      ? { message: addFix.error.message, retry: () => addFix.mutate(addFix.variables!) }
+      : deleteFix.isError
+        ? { message: deleteFix.error.message, retry: () => deleteFix.mutate(deleteFix.variables!) }
+        : null;
 
   return (
     <section className="py-4">
@@ -180,8 +191,36 @@ export function FixesPanel({
         </div>
       )}
 
+      {failure ? (
+        <div className="mt-3 flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 border-l-2 border-short pl-3 text-[12px]">
+          <span className="text-short">{failure.message}</span>
+          <span className="flex gap-3">
+            {failure.retry ? (
+              <button
+                type="button"
+                onClick={failure.retry}
+                className="underline underline-offset-2 hover:text-ink"
+              >
+                Повторить
+              </button>
+            ) : null}
+            <button
+              type="button"
+              onClick={() => {
+                setFormError(null);
+                addFix.reset();
+                deleteFix.reset();
+              }}
+              className="text-ink-soft underline underline-offset-2 hover:text-ink"
+            >
+              Скрыть
+            </button>
+          </span>
+        </div>
+      ) : null}
+
       {status === "open" ? (
-        <form onSubmit={addFix} className="mt-4 max-w-[560px] border-t border-rule pt-4">
+        <form onSubmit={submitFix} className="mt-4 max-w-[560px] border-t border-rule pt-4">
           <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
             <div>
               <label htmlFor="fixPrice" className="block text-[11px] text-ink-soft">
@@ -207,7 +246,6 @@ export function FixesPanel({
                 type="number"
                 step="any"
                 inputMode="decimal"
-                max={remainingPct}
                 value={sizePct}
                 onChange={(e) => setSizePct(e.target.value)}
                 className={inputClass + " mt-1"}
@@ -247,10 +285,10 @@ export function FixesPanel({
             <div className="flex items-end">
               <button
                 type="submit"
-                disabled={pending || !fixPrice || !sizePct}
+                disabled={!fixPrice || !sizePct}
                 className="w-full rounded-[3px] bg-btn px-3 py-2 text-[13px] font-medium text-white disabled:opacity-40"
               >
-                {pending ? "…" : "Добавить"}
+                Добавить
               </button>
             </div>
           </div>
@@ -280,7 +318,6 @@ export function FixesPanel({
             ) : null}
           </div>
 
-          {error ? <p className="mt-3 text-[12px] text-short">{error}</p> : null}
         </form>
       ) : null}
     </section>

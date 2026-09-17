@@ -1,18 +1,16 @@
-import Link from "next/link";
 import { notFound } from "next/navigation";
 import { AppShell } from "@/components/app-shell";
-import { DirectionTag } from "@/components/direction-tag";
-import { ProgressBar } from "@/components/progress-bar";
-import { EditTradeForm } from "@/app/trades/[id]/edit-trade-form";
-import { FixesPanel } from "@/app/trades/[id]/fixes-panel";
+import { TradeView } from "@/components/trade-view";
 import { getAccount } from "@/lib/account";
-import { dateTime, money, pct, price, rMultiple, signedMoney, signedPct } from "@/lib/format";
 import { prisma } from "@/lib/prisma";
 import { fixToDTO, tradeToDTO } from "@/lib/serialize";
-import { fixNetPnL, margin, realizedSoFar, stopDistancePct } from "@/lib/trading-math";
 
 export const dynamic = "force-dynamic";
 
+/**
+ * SSR отдаёт первый снимок сделки; дальше страница живёт в кеше Query на
+ * клиенте, и мутации не требуют перерисовки с сервера.
+ */
 export default async function TradePage({
   params,
 }: {
@@ -27,155 +25,9 @@ export default async function TradePage({
   });
   if (!row) notFound();
 
-  const trade = tradeToDTO(row);
-  const fixes = row.fixes.map(fixToDTO);
-  const closedPct = fixes.reduce((acc, f) => acc + f.sizePct, 0);
-
-  // Результат по каждой фиксации и по уже закрытой части — по тем же формулам,
-  // что и итог сделки. Открытый остаток сюда не входит: рыночной цены у нас нет.
-  const fixesWithPnL = fixes.map((fix) => ({ ...fix, netPnL: fixNetPnL(trade, fix) }));
-  const realized = realizedSoFar(trade, fixes);
-  const realizedTone =
-    realized.netPnL > 0 ? "text-long" : realized.netPnL < 0 ? "text-short" : "text-ink";
-
   return (
     <AppShell>
-      <div className="flex items-baseline justify-between gap-4 border-b border-rule pb-3">
-        <h1 className="text-[15px] font-medium">
-          {trade.pair}{" "}
-          <span className="text-[13px] font-normal">
-            <DirectionTag direction={trade.direction} />
-          </span>
-        </h1>
-        <span className="text-[12px] text-ink-soft">
-          {trade.status === "open" ? "открыта" : "закрыта"} ·{" "}
-          <span className="num">{dateTime(trade.createdAt)}</span>
-        </span>
-      </div>
-
-      <section className="grid grid-cols-2 gap-x-4 gap-y-4 border-b border-rule py-4 md:grid-cols-6">
-        <Param label="Вход" value={price(trade.entryPrice)} />
-        <Param label="Стоп-лосс" value={price(trade.stopLoss)} />
-        <Param
-          label="Дистанция"
-          value={pct(stopDistancePct(trade.entryPrice, trade.stopLoss))}
-        />
-        <Param label="Риск" value={`${money(trade.riskAmount)} · ${pct(trade.riskPct)}`} />
-        <Param label="Позиция" value={money(trade.positionSize)} />
-        <Param
-          label={`Маржа · ${trade.leverage}×`}
-          value={money(margin(trade.positionSize, trade.leverage))}
-        />
-      </section>
-
-      {trade.status === "open" ? (
-        <section className="border-b border-rule py-4">
-          <EditTradeForm trade={trade} hasFixes={fixes.length > 0} />
-        </section>
-      ) : null}
-
-      <section className="border-b border-rule py-4">
-        <div className="flex items-baseline justify-between">
-          <span className="text-[11px] text-ink-soft">Закрыто позиции</span>
-          <span className="num text-[13px]">{closedPct.toFixed(2)}%</span>
-        </div>
-        <div className="mt-2">
-          <ProgressBar value={closedPct} />
-        </div>
-        {trade.status === "open" && fixes.length > 0 ? (
-          <div className="mt-2 flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
-            <span className="text-[11px] text-ink-soft">
-              Реализовано по закрытым {closedPct.toFixed(0)}%
-              {closedPct < 100 ? " · остаток без рыночной цены не считается" : ""}
-            </span>
-            <span className={"num text-[14px] " + realizedTone}>
-              {signedMoney(realized.netPnL)}
-              <span className="text-[12px] text-ink-soft"> · {rMultiple(realized.rMultiple)}</span>
-            </span>
-          </div>
-        ) : null}
-      </section>
-
-      {trade.status === "closed" ? <ResultBlock trade={trade} /> : null}
-
-      <FixesPanel
-        tradeId={trade.id}
-        status={trade.status}
-        fixes={fixesWithPnL}
-        closedPct={closedPct}
-        positionSize={trade.positionSize}
-      />
-
-      <div className="mt-5 flex gap-4 text-[12px] text-ink-soft">
-        <Link href="/" className="underline underline-offset-2 hover:text-ink">
-          К дашборду
-        </Link>
-        {trade.tvLink ? (
-          <a
-            href={trade.tvLink}
-            target="_blank"
-            rel="noreferrer noopener"
-            className="underline underline-offset-2 hover:text-ink"
-          >
-            График на TradingView
-          </a>
-        ) : null}
-      </div>
+      <TradeView initialData={{ trade: tradeToDTO(row), fixes: row.fixes.map(fixToDTO) }} />
     </AppShell>
-  );
-}
-
-function ResultBlock({
-  trade,
-}: {
-  trade: {
-    grossPnL: number | null;
-    totalFees: number | null;
-    netPnL: number | null;
-    netPnlPctOfDeposit: number | null;
-    realizedAvgExit: number | null;
-    realizedRR: number | null;
-    closedAt: string | null;
-  };
-}) {
-  const tone =
-    trade.netPnL === null ? "" : trade.netPnL > 0 ? "text-long" : trade.netPnL < 0 ? "text-short" : "";
-
-  return (
-    <section className="border-b border-rule py-4">
-      <div className="flex items-baseline justify-between">
-        <h2 className="text-[13px] font-medium">Результат</h2>
-        {trade.closedAt ? (
-          <span className="num text-[12px] text-ink-soft">{dateTime(trade.closedAt)}</span>
-        ) : null}
-      </div>
-      <div className="mt-3 grid grid-cols-2 gap-x-4 gap-y-4 md:grid-cols-5">
-        <Param label="Gross P/L" value={signedMoney(trade.grossPnL)} />
-        <Param label="Комиссии" value={money(trade.totalFees)} />
-        <Param label="Net P/L" value={signedMoney(trade.netPnL)} tone={tone} />
-        <Param label="% к депозиту" value={signedPct(trade.netPnlPctOfDeposit)} tone={tone} />
-        <Param label="Realized R:R" value={rMultiple(trade.realizedRR)} tone={tone} />
-      </div>
-      <p className="mt-3 text-[11px] text-ink-soft">
-        средняя цена выхода <span className="num">{price(trade.realizedAvgExit)}</span>
-      </p>
-    </section>
-  );
-}
-
-function Param({
-  label,
-  value,
-  tone,
-}: {
-  label: string;
-  value: string;
-  tone?: string;
-}) {
-  return (
-    <div className="min-w-0">
-      <p className="text-[11px] text-ink-soft">{label}</p>
-      <p className={"num mt-0.5 truncate text-[15px] " + (tone ?? "")}>{value}</p>
-    </div>
   );
 }

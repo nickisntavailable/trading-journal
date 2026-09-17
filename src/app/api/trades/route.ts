@@ -45,6 +45,7 @@ export async function GET(request: Request) {
 }
 
 const createSchema = z.object({
+  id: z.string().uuid().optional(),
   pair: z.string().trim().min(1).max(32),
   direction: z.union([z.literal(1), z.literal(-1)]),
   entryPrice: z.number().finite().positive(),
@@ -63,6 +64,15 @@ export async function POST(request: Request) {
     if (stopError) return badRequest(stopError);
 
     const account = await getAccount();
+
+    // Идемпотентность: повтор с тем же клиентским id возвращает уже созданную.
+    if (body.id) {
+      const existing = await prisma.trade.findFirst({
+        where: { id: body.id, accountId: account.id },
+      });
+      if (existing) return NextResponse.json({ trade: tradeToDTO(existing) });
+    }
+
     const depositAtEntry = Number(account.balance);
     const feeRateAtEntry = Number(account.feeRatePct);
 
@@ -82,6 +92,7 @@ export async function POST(request: Request) {
 
     const trade = await prisma.trade.create({
       data: {
+        ...(body.id ? { id: body.id } : {}),
         accountId: account.id,
         pair: body.pair.toUpperCase(),
         direction,
