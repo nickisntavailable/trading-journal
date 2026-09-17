@@ -10,7 +10,6 @@ export default async function NewTradePage() {
   const account = await getAccount();
   return (
     <AppShell>
-      <h1 className="text-[13px] font-medium">Новая сделка</h1>
       <NewTradeForm account={accountToDTO(account)} />
     </AppShell>
   );

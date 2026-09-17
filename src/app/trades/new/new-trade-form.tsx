@@ -1,14 +1,16 @@
 "use client";
 
-import { useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
 import {
   ScreenshotBlock,
   ScreenshotCandidates,
   type ParsedScreenshot,
 } from "@/app/trades/new/screenshot-block";
+import { TradeView } from "@/components/trade-view";
 import { money, pct } from "@/lib/format";
-import type { AccountDTO } from "@/lib/serialize";
+import type { TradeWithFixes } from "@/lib/query/api";
+import { useCreateTrade } from "@/lib/query/trade";
+import type { AccountDTO, TradeDTO } from "@/lib/serialize";
 import { parseTradingViewLink } from "@/lib/tradingview-link";
 import {
   margin,
@@ -23,7 +25,10 @@ const inputClass =
   "num w-full rounded-[3px] border border-rule bg-white px-2.5 py-2 text-[14px] outline-none focus:border-ink";
 
 export function NewTradeForm({ account }: { account: AccountDTO }) {
-  const router = useRouter();
+  const createTrade = useCreateTrade();
+  // Открытая сделка показывается на месте формы: перехода на другую страницу
+  // и ожидания SSR нет, URL подменяется, чтобы обновление страницы работало.
+  const [opened, setOpened] = useState<TradeWithFixes | null>(null);
 
   const [pair, setPair] = useState("");
   const [direction, setDirection] = useState<Direction>(1);
@@ -36,7 +41,6 @@ export function NewTradeForm({ account }: { account: AccountDTO }) {
   const [error, setError] = useState<string | null>(null);
   // Поля, на которые ругнулись при отправке: подсвечиваются, пока не заполнены.
   const [missing, setMissing] = useState<Set<string>>(new Set());
-  const [pending, setPending] = useState(false);
   const [parsingSnapshot, setParsingSnapshot] = useState(false);
   const [snapshotError, setSnapshotError] = useState<string | null>(null);
   // Основной путь — картинка. Поле ссылки открывается само, когда со скриншотом
@@ -132,7 +136,7 @@ export function NewTradeForm({ account }: { account: AccountDTO }) {
     }
   }
 
-  async function onSubmit(event: React.FormEvent) {
+  function onSubmit(event: React.FormEvent) {
     event.preventDefault();
     setError(null);
 
@@ -164,38 +168,85 @@ export function NewTradeForm({ account }: { account: AccountDTO }) {
       return;
     }
 
-    setPending(true);
-    const response = await fetch("/api/trades", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        pair: pair.trim(),
+    const lev = Number(leverage) > 0 ? Number(leverage) : account.defaultLeverage;
+    const riskAmountValue = riskAmount(account.balance, riskPct);
+    const positionSizeValue = positionSize(riskAmountValue, entry, stop);
+
+    // DTO считаем локально теми же формулами, что и сервер: карточка сразу
+    // показывает те цифры, которые он потом подтвердит.
+    const trade: TradeDTO = {
+      id: crypto.randomUUID(),
+      accountId: account.id,
+      pair: pair.trim().toUpperCase(),
+      direction,
+      entryPrice: entry,
+      stopLoss: stop,
+      riskPct,
+      depositAtEntry: account.balance,
+      feeRateAtEntry: account.feeRatePct,
+      riskAmount: riskAmountValue,
+      positionSize: positionSizeValue,
+      leverage: lev,
+      tvLink: tvLink.trim() ? tvLink.trim() : null,
+      status: "open",
+      createdAt: new Date().toISOString(),
+      closedAt: null,
+      grossPnL: null,
+      totalFees: null,
+      netPnL: null,
+      netPnlPctOfDeposit: null,
+      realizedAvgExit: null,
+      realizedRR: null,
+    };
+    const snapshot: TradeWithFixes = { trade, fixes: [] };
+
+    setOpened(snapshot);
+    window.history.replaceState(null, "", `/trades/${trade.id}`);
+    createTrade.mutate({
+      snapshot,
+      body: {
+        id: trade.id,
+        pair: trade.pair,
         direction,
         entryPrice: entry,
         stopLoss: stop,
         riskPct,
-        ...(Number(leverage) > 0 ? { leverage: Number(leverage) } : {}),
-        ...(tvLink.trim() ? { tvLink: tvLink.trim() } : {}),
-      }),
+        leverage: lev,
+        ...(trade.tvLink ? { tvLink: trade.tvLink } : {}),
+      },
     });
+  }
 
-    const data = await response.json().catch(() => ({}));
-    if (!response.ok) {
-      setError(data.error ?? "Не удалось открыть сделку");
-      setPending(false);
-      return;
-    }
-
-    router.push(`/trades/${data.trade.id}`);
-    router.refresh();
+  function backToForm() {
+    createTrade.reset();
+    setOpened(null);
+    window.history.replaceState(null, "", "/trades/new");
   }
 
   // Подсветка поля снимается, как только в него что-то ввели.
   const fieldClass = (id: string, filled: boolean) =>
     inputClass + " mt-1" + (missing.has(id) && !filled ? " border-short" : "");
 
+  if (opened) {
+    return (
+      <TradeView
+        initialData={opened}
+        creation={
+          createTrade.isError
+            ? {
+                message: createTrade.error.message,
+                retry: () => createTrade.mutate(createTrade.variables!),
+                back: backToForm,
+              }
+            : null
+        }
+      />
+    );
+  }
+
   return (
     <form onSubmit={onSubmit} className="mt-4 max-w-[560px]">
+      <h1 className="mb-4 text-[13px] font-medium">Новая сделка</h1>
       <ScreenshotBlock onParsed={applyParsed} onFailure={() => setShowLink(true)} />
       <ScreenshotCandidates
         parsed={parsed}
@@ -374,10 +425,9 @@ export function NewTradeForm({ account }: { account: AccountDTO }) {
 
       <button
         type="submit"
-        disabled={pending}
-        className="mt-5 rounded-[3px] bg-btn px-4 py-2 text-[13px] font-medium text-white disabled:opacity-40"
+        className="mt-5 rounded-[3px] bg-btn px-4 py-2 text-[13px] font-medium text-white"
       >
-        {pending ? "Открываю…" : "Открыть сделку"}
+        Открыть сделку
       </button>
     </form>
   );

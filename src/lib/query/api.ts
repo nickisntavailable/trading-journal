@@ -1,3 +1,4 @@
+import { awaitCreation } from "@/lib/query/pending";
 import type { FixDTO, TradeDTO } from "@/lib/serialize";
 
 export type TradeWithFixes = { trade: TradeDTO; fixes: FixDTO[] };
@@ -27,18 +28,30 @@ async function request<T>(url: string, init?: RequestInit): Promise<T> {
 export const api = {
   getTrade: (id: string) => request<TradeWithFixes>(`/api/trades/${id}`),
 
-  addFix: (tradeId: string, body: { id: string; price: number; sizePct: number; type: "manual" | "stop" }) =>
-    request<{ fix: FixDTO; trade: TradeDTO; closed: boolean }>(`/api/trades/${tradeId}/fixes`, {
-      method: "POST",
-      body: JSON.stringify(body),
-    }),
+  addFix: async (
+    tradeId: string,
+    body: { id: string; price: number; sizePct: number; type: "manual" | "stop" },
+  ) => {
+    await awaitCreation(tradeId);
+    return request<{ fix: FixDTO; trade: TradeDTO; closed: boolean }>(
+      `/api/trades/${tradeId}/fixes`,
+      { method: "POST", body: JSON.stringify(body) },
+    );
+  },
 
-  deleteFix: (tradeId: string, fixId: string) =>
-    request<{ ok: true }>(`/api/trades/${tradeId}/fixes/${fixId}`, { method: "DELETE" }),
+  deleteFix: async (tradeId: string, fixId: string) => {
+    await awaitCreation(tradeId);
+    return request<{ ok: true }>(`/api/trades/${tradeId}/fixes/${fixId}`, { method: "DELETE" });
+  },
 
   createTrade: (body: Record<string, unknown>) =>
     request<{ trade: TradeDTO }>("/api/trades", { method: "POST", body: JSON.stringify(body) }),
 
-  updateTrade: (id: string, body: Record<string, unknown>) =>
-    request<{ trade: TradeDTO }>(`/api/trades/${id}`, { method: "PATCH", body: JSON.stringify(body) }),
+  updateTrade: async (id: string, body: Record<string, unknown>) => {
+    await awaitCreation(id);
+    return request<{ trade: TradeDTO }>(`/api/trades/${id}`, {
+      method: "PATCH",
+      body: JSON.stringify(body),
+    });
+  },
 };

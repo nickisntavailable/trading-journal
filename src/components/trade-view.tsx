@@ -15,7 +15,14 @@ import { fixNetPnL, margin, realizedSoFar, stopDistancePct } from "@/lib/trading
  * Страница сделки целиком живёт из кеша Query: SSR отдаёт initialData,
  * фиксации добавляются и удаляются оптимистично, сервер подтверждает потом.
  */
-export function TradeView({ initialData }: { initialData: TradeWithFixes }) {
+export function TradeView({
+  initialData,
+  creation = null,
+}: {
+  initialData: TradeWithFixes;
+  /** Сделка открыта оптимистично и сервер её отверг — показать причину и выходы. */
+  creation?: { message: string; retry: () => void; back: () => void } | null;
+}) {
   const { data } = useTrade(initialData.trade.id, initialData);
   const addFix = useAddFix(initialData.trade.id);
   const deleteFix = useDeleteFix(initialData.trade.id);
@@ -32,6 +39,28 @@ export function TradeView({ initialData }: { initialData: TradeWithFixes }) {
 
   return (
     <>
+      {creation ? (
+        <div className="mb-4 flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 border-l-2 border-short pl-3 text-[12px]">
+          <span className="text-short">Сделка не сохранилась: {creation.message}</span>
+          <span className="flex gap-3">
+            <button
+              type="button"
+              onClick={creation.retry}
+              className="underline underline-offset-2 hover:text-ink"
+            >
+              Повторить
+            </button>
+            <button
+              type="button"
+              onClick={creation.back}
+              className="text-ink-soft underline underline-offset-2 hover:text-ink"
+            >
+              К форме
+            </button>
+          </span>
+        </div>
+      ) : null}
+
       <div className="flex items-baseline justify-between gap-4 border-b border-rule pb-3">
         <h1 className="text-[15px] font-medium">
           {trade.pair}{" "}

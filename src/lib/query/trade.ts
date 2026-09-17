@@ -4,6 +4,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { api, type TradeWithFixes } from "@/lib/query/api";
 import { queryKeys } from "@/lib/query/keys";
+import { clearCreation, trackCreation } from "@/lib/query/pending";
 import type { FixDTO, TradeDTO } from "@/lib/serialize";
 import { applyFix, reconcileFix, removeFix, validateNewFix } from "@/lib/trade-local";
 
@@ -115,6 +116,35 @@ export function useUpdateTrade(tradeId: string) {
       queryClient.setQueryData<TradeWithFixes>(key, (current) =>
         current ? { ...current, trade: data.trade } : current,
       );
+    },
+  });
+}
+
+/**
+ * Открытие сделки оптимистично: карточка рисуется из локально посчитанного DTO
+ * сразу, POST уходит в фоне. Зависимые запросы (фиксации, правка) ждут его
+ * через реестр pending — UI при этом ничего не ждёт.
+ */
+export function useCreateTrade() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (input: { snapshot: TradeWithFixes; body: Record<string, unknown> }) => {
+      const promise = api.createTrade(input.body);
+      trackCreation(input.snapshot.trade.id, promise);
+      return promise;
+    },
+    onMutate: ({ snapshot }) => {
+      queryClient.setQueryData<TradeWithFixes>(queryKeys.trade(snapshot.trade.id), snapshot);
+    },
+    onSuccess: (data, { snapshot }) => {
+      queryClient.setQueryData<TradeWithFixes>(queryKeys.trade(snapshot.trade.id), (current) =>
+        current ? { ...current, trade: data.trade } : { trade: data.trade, fixes: [] },
+      );
+    },
+    onError: (_error, { snapshot }) => {
+      // Кеш оставляем: карточка с ошибкой и «Повторить» живёт из него.
+      clearCreation(snapshot.trade.id);
     },
   });
 }
