@@ -35,6 +35,7 @@ export function FixesPanel({
   fixes,
   closedPct,
   positionSize,
+  stopLoss,
   addFix,
   deleteFix,
 }: {
@@ -42,6 +43,8 @@ export function FixesPanel({
   fixes: (FixDTO & { netPnL: number })[];
   closedPct: number;
   positionSize: number;
+  /** Стоп сделки: по нему заполняется фиксация типа «стоп». */
+  stopLoss: number;
   addFix: ReturnType<typeof useAddFix>;
   deleteFix: ReturnType<typeof useDeleteFix>;
 }) {
@@ -62,6 +65,16 @@ export function FixesPanel({
   const pending = deleteFix.isPending;
 
   const [formError, setFormError] = useState<string | null>(null);
+
+  // Выбор «стоп» — это почти всегда закрытие остатка по цене стопа: подставляем
+  // обе цифры, пользователю остаётся проверить и подтвердить. Поля остаются
+  // редактируемыми — стоп мог исполниться с проскальзыванием.
+  function chooseStop() {
+    setType("stop");
+    setFixPrice(String(stopLoss));
+    setSizePct(String(remainder));
+    setFormError(null);
+  }
 
   function submitFix(event: React.FormEvent) {
     event.preventDefault();
@@ -269,7 +282,7 @@ export function FixesPanel({
                 </button>
                 <button
                   type="button"
-                  onClick={() => setType("stop")}
+                  onClick={chooseStop}
                   className={
                     "rounded-[3px] border px-2 py-2 text-[12px] " +
                     (type === "stop"
