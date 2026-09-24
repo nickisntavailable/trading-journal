@@ -6,8 +6,11 @@ import type { useAddFix, useDeleteFix } from "@/lib/query/trade";
 import type { FixDTO } from "@/lib/serialize";
 import { SwipeToDelete } from "@/components/swipe-to-delete";
 
-const inputClass =
-  "num w-full rounded-[3px] border border-rule bg-white px-2.5 py-2 text-[14px] outline-none focus:border-ink";
+// Поля, кнопки типа и «Добавить» стоят в одном ряду — у всех одна высота,
+// иначе ряд выглядит рваным (поле с 16px-шрифтом на мобильной выше кнопки).
+const CONTROL_HEIGHT = "h-10";
+
+const inputClass = `num w-full ${CONTROL_HEIGHT} rounded-[3px] border border-rule bg-white px-2.5 text-[14px] outline-none focus:border-ink`;
 
 const toneOf = (value: number) =>
   value > 0 ? "text-long" : value < 0 ? "text-short" : "";
@@ -35,6 +38,7 @@ export function FixesPanel({
   fixes,
   closedPct,
   positionSize,
+  stopLoss,
   addFix,
   deleteFix,
 }: {
@@ -42,6 +46,8 @@ export function FixesPanel({
   fixes: (FixDTO & { netPnL: number })[];
   closedPct: number;
   positionSize: number;
+  /** Стоп сделки: по нему заполняется фиксация типа «стоп». */
+  stopLoss: number;
   addFix: ReturnType<typeof useAddFix>;
   deleteFix: ReturnType<typeof useDeleteFix>;
 }) {
@@ -62,6 +68,16 @@ export function FixesPanel({
   const pending = deleteFix.isPending;
 
   const [formError, setFormError] = useState<string | null>(null);
+
+  // Выбор «стоп» — это почти всегда закрытие остатка по цене стопа: подставляем
+  // обе цифры, пользователю остаётся проверить и подтвердить. Поля остаются
+  // редактируемыми — стоп мог исполниться с проскальзыванием.
+  function chooseStop() {
+    setType("stop");
+    setFixPrice(String(stopLoss));
+    setSizePct(String(remainder));
+    setFormError(null);
+  }
 
   function submitFix(event: React.FormEvent) {
     event.preventDefault();
@@ -259,7 +275,7 @@ export function FixesPanel({
                   type="button"
                   onClick={() => setType("manual")}
                   className={
-                    "rounded-[3px] border px-2 py-2 text-[12px] " +
+                    `${CONTROL_HEIGHT} rounded-[3px] border px-2 text-[12px] ` +
                     (type === "manual"
                       ? "border-ink text-ink"
                       : "border-rule bg-white text-ink-soft")
@@ -269,9 +285,9 @@ export function FixesPanel({
                 </button>
                 <button
                   type="button"
-                  onClick={() => setType("stop")}
+                  onClick={chooseStop}
                   className={
-                    "rounded-[3px] border px-2 py-2 text-[12px] " +
+                    `${CONTROL_HEIGHT} rounded-[3px] border px-2 text-[12px] ` +
                     (type === "stop"
                       ? "border-ink text-ink"
                       : "border-rule bg-white text-ink-soft")
@@ -286,7 +302,7 @@ export function FixesPanel({
               <button
                 type="submit"
                 disabled={!fixPrice || !sizePct}
-                className="w-full rounded-[3px] bg-btn px-3 py-2 text-[13px] font-medium text-white disabled:opacity-40"
+                className={`w-full ${CONTROL_HEIGHT} rounded-[3px] bg-btn px-3 text-[13px] font-medium text-white disabled:opacity-40`}
               >
                 Добавить
               </button>

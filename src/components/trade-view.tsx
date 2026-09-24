@@ -121,6 +121,7 @@ export function TradeView({
         fixes={fixesWithPnL}
         closedPct={closedPct}
         positionSize={trade.positionSize}
+        stopLoss={trade.stopLoss}
         addFix={addFix}
         deleteFix={deleteFix}
       />
