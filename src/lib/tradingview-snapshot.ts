@@ -1,9 +1,9 @@
 /**
  * Загрузка картинки снимка TradingView по ссылке вида
- * https://www.tradingview.com/x/PfnQGGE0/
+ * https://www.tradingview.com/x/AbCdEfGh/
  *
  * Страница снимка отдаёт прямую ссылку на PNG в og:image
- * (https://s3.tradingview.com/snapshots/p/PfnQGGE0.png). Ссылку на живой график
+ * (https://s3.tradingview.com/snapshots/a/AbCdEfGh.png). Ссылку на живой график
  * (/chart/<id>/) так забрать нельзя: там JS-приложение, а og:image — стоковая
  * заглушка, одинаковая для всех графиков.
  *
