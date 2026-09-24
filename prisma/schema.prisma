@@ -76,3 +76,30 @@ model Fix {
 
   @@index([tradeId])
 }
+
+// Журнал попыток входа: на нём держатся ограничение перебора и сигналы.
+// Не привязан к аккаунту — попытка случается до того, как известно, кто это.
+model LoginAttempt {
+  id        String   @id @default(cuid())
+  ip        String
+  success   Boolean
+  country   String?
+  city      String?
+  userAgent String?
+  createdAt DateTime @default(now())
+
+  @@index([ip, createdAt])
+  @@index([createdAt])
+}
+
+// Отправленные сигналы безопасности: не дают слать один и тот же сигнал на
+// каждую попытку и остаются журналом того, что происходило. Ключ включает окно
+// времени и уникален — дедупликация атомарна на уровне базы, параллельные
+// запросы не могут отправить дубль.
+model SecurityAlert {
+  id        String   @id @default(cuid())
+  key       String   @unique // "ip-lockout:1.2.3.4:<окно>", "mass-failures:<окно>"
+  createdAt DateTime @default(now())
+
+  @@index([createdAt])
+}
