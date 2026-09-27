@@ -1,14 +1,13 @@
 import { NextResponse } from "next/server";
-import { SESSION_COOKIE } from "@/lib/auth";
+import { auth } from "@/lib/better-auth";
+import { handleError } from "@/lib/api";
 
-export async function POST() {
-  const response = NextResponse.json({ ok: true });
-  response.cookies.set(SESSION_COOKIE, "", {
-    httpOnly: true,
-    sameSite: "lax",
-    secure: process.env.NODE_ENV === "production",
-    path: "/",
-    maxAge: 0,
-  });
-  return response;
+/** Выход: сессия удаляется из базы, cookie стираются (через nextCookies). */
+export async function POST(request: Request) {
+  try {
+    await auth.api.signOut({ headers: request.headers });
+    return NextResponse.json({ ok: true });
+  } catch (error) {
+    return handleError(error);
+  }
 }

@@ -1,8 +1,9 @@
-import { createHash, timingSafeEqual } from "node:crypto";
+import { APIError } from "better-auth/api";
 import { after, NextResponse } from "next/server";
 import { z } from "zod";
-import { SESSION_COOKIE, sessionToken } from "@/lib/auth";
 import { handleError } from "@/lib/api";
+import { auth } from "@/lib/better-auth";
+import { failureDelay } from "@/lib/security/compare";
 import { requestInfo } from "@/lib/security/request-info";
 import {
   afterSuccess,
@@ -12,30 +13,20 @@ import {
   onLocked,
 } from "@/lib/security/login-throttle";
 
-const bodySchema = z.object({ password: z.string().min(1).max(200) });
-
-/** Задержка на неверный пароль: перебору медленнее, человеку незаметно. */
-const FAILURE_DELAY_MS = 500;
+const bodySchema = z.object({
+  email: z.string().trim().email("Некорректная почта").max(200),
+  password: z.string().min(1).max(200),
+});
 
 /**
- * Сравнение за постоянное время. Обычное `===` выходит на первом несовпавшем
- * символе, и по времени ответа можно угадывать пароль посимвольно. Хешируем
- * оба значения, чтобы сравнивать строки одинаковой длины.
+ * Вход по почте и паролю. Пароль проверяет Better Auth (хеш scrypt в таблице
+ * authAccount), а вокруг — наш журнал попыток: блокировка перебора по IP и
+ * сигналы. Эндпоинт Better Auth /api/auth/sign-in/email закрыт, так что
+ * другого пути войти по паролю нет.
  */
-function passwordMatches(input: string, expected: string): boolean {
-  const a = createHash("sha256").update(input).digest();
-  const b = createHash("sha256").update(expected).digest();
-  return timingSafeEqual(a, b);
-}
-
 export async function POST(request: Request) {
   try {
-    const appPassword = process.env.APP_PASSWORD;
-    if (!appPassword) {
-      return NextResponse.json({ error: "APP_PASSWORD не задан" }, { status: 500 });
-    }
-
-    const { password } = bodySchema.parse(await request.json());
+    const { email, password } = bodySchema.parse(await request.json());
     const info = requestInfo(request);
 
     const attempt = await beginAttempt(info);
@@ -48,25 +39,31 @@ export async function POST(request: Request) {
       );
     }
 
-    if (!passwordMatches(password, appPassword)) {
+    try {
+      // Cookie сессии ставит плагин nextCookies — они уйдут вместе с ответом.
+      await auth.api.signInEmail({
+        body: { email, password, rememberMe: true },
+        headers: request.headers,
+      });
+    } catch (error) {
+      if (!(error instanceof APIError)) throw error;
       // Сигналы — после ответа: Telegram не должен тормозить вход.
       after(() => onFailure(info));
-      await new Promise((resolve) => setTimeout(resolve, FAILURE_DELAY_MS));
-      return NextResponse.json({ error: "Неверный пароль" }, { status: 401 });
+      await failureDelay();
+      // Неверная почта и неверный пароль — одно сообщение: иначе по ответу
+      // можно выяснять, какие почты зарегистрированы.
+      const message =
+        error.statusCode === 401
+          ? "Неверная почта или пароль"
+          : error.statusCode === 403
+            ? "Вход для этого пользователя закрыт"
+            : "Ошибка входа";
+      return NextResponse.json({ error: message }, { status: error.statusCode });
     }
 
     await markSuccess(attempt.attemptId);
     after(() => afterSuccess(attempt.attemptId, info));
-
-    const response = NextResponse.json({ ok: true });
-    response.cookies.set(SESSION_COOKIE, await sessionToken(appPassword), {
-      httpOnly: true,
-      sameSite: "lax",
-      secure: process.env.NODE_ENV === "production",
-      path: "/",
-      maxAge: 60 * 60 * 24 * 90,
-    });
-    return response;
+    return NextResponse.json({ ok: true });
   } catch (error) {
     return handleError(error);
   }
