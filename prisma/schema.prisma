@@ -1,3 +1,4 @@
+
 generator client {
   provider = "prisma-client-js"
 }
@@ -8,16 +9,20 @@ datasource db {
 }
 
 model Account {
-  id            String         @id @default(cuid())
-  balance       Decimal        @db.Decimal(18, 2)
-  baseRiskPct   Decimal        @db.Decimal(5, 2)
-  riskLimitPct  Decimal        @default(3.00) @db.Decimal(5, 2) // потолок суммарного риска открытых позиций, % от баланса
-  feeRatePct    Decimal        @db.Decimal(6, 4) // напр. 0.0600 = 0.06%
-  defaultLeverage Decimal      @default(5) @db.Decimal(5, 2) // плечо по умолчанию для новых сделок
-  createdAt     DateTime       @default(now())
-  updatedAt     DateTime       @updatedAt
-  trades        Trade[]
-  balanceEvents BalanceEvent[]
+  id              String         @id @default(cuid())
+  balance         Decimal        @db.Decimal(18, 2)
+  baseRiskPct     Decimal        @db.Decimal(5, 2)
+  riskLimitPct    Decimal        @default(3.00) @db.Decimal(5, 2) // потолок суммарного риска открытых позиций, % от баланса
+  feeRatePct      Decimal        @db.Decimal(6, 4) // напр. 0.0600 = 0.06%
+  defaultLeverage Decimal        @default(5) @db.Decimal(5, 2) // плечо по умолчанию для новых сделок
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+  // Владелец счёта. Необязательный, пока существующий счёт не передан своему
+  // пользователю; уникальный — у пользователя ровно один торговый счёт.
+  userId          String?        @unique
+  user            User?          @relation(fields: [userId], references: [id])
+  trades          Trade[]
+  balanceEvents   BalanceEvent[]
 }
 
 model BalanceEvent {
@@ -79,6 +84,7 @@ model Fix {
 
 // Журнал попыток входа: на нём держатся ограничение перебора и сигналы.
 // Не привязан к аккаунту — попытка случается до того, как известно, кто это.
+
 model LoginAttempt {
   id        String   @id @default(cuid())
   ip        String
@@ -96,10 +102,91 @@ model LoginAttempt {
 // каждую попытку и остаются журналом того, что происходило. Ключ включает окно
 // времени и уникален — дедупликация атомарна на уровне базы, параллельные
 // запросы не могут отправить дубль.
+
 model SecurityAlert {
   id        String   @id @default(cuid())
   key       String   @unique // "ip-lockout:1.2.3.4:<окно>", "mass-failures:<окно>"
   createdAt DateTime @default(now())
 
   @@index([createdAt])
+}
+
+model User {
+  id                  String        @id
+  name                String
+  email               String
+  emailVerified       Boolean       @default(false)
+  image               String?
+  createdAt           DateTime      @default(now())
+  updatedAt           DateTime      @updatedAt
+  role                String?
+  banned              Boolean?      @default(false)
+  banReason           String?
+  banExpires          DateTime?
+  canParseScreenshots Boolean?      @default(false)
+  sessions            Session[]
+  authaccounts        AuthAccount[]
+  tradingAccount      Account?
+
+  @@unique([email])
+  @@map("user")
+}
+
+model Session {
+  id             String   @id
+  expiresAt      DateTime
+  token          String
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  ipAddress      String?
+  userAgent      String?
+  userId         String
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  impersonatedBy String?
+
+  @@unique([token])
+  @@index([userId])
+  @@map("session")
+}
+
+model AuthAccount {
+  id                    String    @id
+  accountId             String
+  providerId            String
+  userId                String
+  user                  User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  accessToken           String?
+  refreshToken          String?
+  idToken               String?
+  accessTokenExpiresAt  DateTime?
+  refreshTokenExpiresAt DateTime?
+  scope                 String?
+  password              String?
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+
+  @@index([userId])
+  @@map("authAccount")
+}
+
+model Verification {
+  id         String   @id
+  identifier String
+  value      String
+  expiresAt  DateTime
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@index([identifier])
+  @@map("verification")
+}
+
+model RateLimit {
+  id          String @id
+  key         String
+  count       Int
+  lastRequest BigInt
+
+  @@unique([key])
+  @@map("rateLimit")
 }
