@@ -161,7 +161,8 @@ export async function afterSuccess(attemptId: string, info: RequestInfo): Promis
   ]);
 }
 
-function who(info: RequestInfo): string {
+/** Кто: IP, место, браузер — строка для сигнала. */
+export function who(info: RequestInfo): string {
   const place = [info.city, info.country].filter(Boolean).join(", ");
   return [
     `<code>${escapeHtml(info.ip)}</code>`,
@@ -173,7 +174,7 @@ function who(info: RequestInfo): string {
 }
 
 /** Прод и превью шлют в один чат — подписываем, откуда сигнал. */
-function envLabel(): string {
+export function envLabel(): string {
   const env = process.env.VERCEL_ENV;
   return env && env !== "production" ? `[${env}]` : "";
 }

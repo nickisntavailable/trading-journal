@@ -1,11 +1,15 @@
 import { AppShell } from "@/components/app-shell";
 import { AccountSettingsForm } from "@/app/settings/account-settings-form";
 import { BalanceForm } from "@/app/settings/balance-form";
+import { PasswordForm } from "@/app/settings/password-form";
+import { RevokeSessionsButton } from "@/app/settings/revoke-sessions-button";
 import { LogoutButton } from "@/components/logout-button";
 import { getAccount } from "@/lib/account";
 import { dateTime, money, signedMoney } from "@/lib/format";
 import { prisma } from "@/lib/prisma";
 import { accountToDTO } from "@/lib/serialize";
+import { describeUserAgent } from "@/lib/security/request-info";
+import { listUserSessions } from "@/lib/session";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Настройки — Trading Journal" };
@@ -24,6 +28,7 @@ export default async function SettingsPage() {
     orderBy: { createdAt: "desc" },
     take: 100,
   });
+  const { user, sessions, currentSessionId } = await listUserSessions();
 
   return (
     <AppShell>
@@ -74,8 +79,38 @@ export default async function SettingsPage() {
       </section>
 
       <section className="py-5">
-        <h2 className="text-[12px] text-ink-soft">Сессия</h2>
-        <div className="mt-2">
+        <div className="flex items-baseline justify-between gap-3">
+          <h2 className="text-[12px] text-ink-soft">Вход</h2>
+          <span className="truncate text-[13px]">{user.email}</span>
+        </div>
+
+        <h3 className="mt-4 text-[11px] text-ink-soft">Устройства</h3>
+        <div className="mt-1">
+          {sessions.map((session) => (
+            <div
+              key={session.id}
+              className="flex items-baseline justify-between gap-3 border-b border-rule py-2 text-[13px] first:border-t"
+            >
+              <span className="min-w-0">
+                <span className="block truncate">
+                  {describeUserAgent(session.userAgent ?? null)}
+                </span>
+                <span className="num block text-[12px] text-ink-soft">
+                  вход {dateTime(session.createdAt)}
+                </span>
+              </span>
+              {session.id === currentSessionId ? (
+                <span className="shrink-0 text-[12px] text-long">это устройство</span>
+              ) : null}
+            </div>
+          ))}
+        </div>
+        {sessions.length > 1 ? <RevokeSessionsButton /> : null}
+
+        <h3 className="mt-5 text-[11px] text-ink-soft">Сменить пароль</h3>
+        <PasswordForm email={user.email} />
+
+        <div className="mt-5">
           <LogoutButton className="rounded-[3px] border border-rule bg-white px-3 py-1.5 text-[12px] hover:border-ink disabled:opacity-40" />
         </div>
       </section>
