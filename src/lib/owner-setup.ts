@@ -1,3 +1,4 @@
+import { ACCOUNT_DEFAULTS } from "@/lib/account-defaults";
 import { prisma } from "@/lib/prisma";
 
 /**
@@ -25,14 +26,5 @@ export async function attachOwnerAccount(userId: string): Promise<void> {
     await prisma.account.update({ where: { id: orphan.id }, data: { userId } });
     return;
   }
-  await prisma.account.create({
-    data: {
-      userId,
-      balance: "0",
-      baseRiskPct: "1.00",
-      riskLimitPct: "3.00",
-      defaultLeverage: "5",
-      feeRatePct: "0.0600",
-    },
-  });
+  await prisma.account.create({ data: { userId, ...ACCOUNT_DEFAULTS } });
 }

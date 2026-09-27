@@ -1,4 +1,3 @@
-
 generator client {
   provider = "prisma-client-js"
 }
@@ -127,6 +126,7 @@ model User {
   sessions            Session[]
   authaccounts        AuthAccount[]
   tradingAccount      Account?
+  invitesCreated      Invite[]
 
   @@unique([email])
   @@map("user")
@@ -189,4 +189,20 @@ model RateLimit {
 
   @@unique([key])
   @@map("rateLimit")
+}
+
+// Приглашение по ссылке. Хранится не сам токен из ссылки, а его SHA-256:
+// прочитав базу, рабочую ссылку не получить. Одноразовое, живёт 7 дней.
+model Invite {
+  id          String    @id @default(cuid())
+  email       String // на эту почту и только на неё можно завести учётку
+  tokenHash   String    @unique
+  createdById String
+  createdBy   User      @relation(fields: [createdById], references: [id], onDelete: Cascade)
+  createdAt   DateTime  @default(now())
+  expiresAt   DateTime
+  acceptedAt  DateTime?
+  revokedAt   DateTime?
+
+  @@index([email])
 }

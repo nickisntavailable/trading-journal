@@ -1,6 +1,6 @@
 import { envLabel, who } from "@/lib/security/login-throttle";
 import type { RequestInfo } from "@/lib/security/request-info";
-import { sendSecurityAlert } from "@/lib/security/telegram";
+import { escapeHtml, sendSecurityAlert } from "@/lib/security/telegram";
 
 /**
  * Сигналы об изменениях учётки. Если пароль сменил не владелец, а тот, кто
@@ -17,6 +17,14 @@ export function alertPasswordChanged(info: RequestInfo): Promise<void> {
 export function alertSessionsRevoked(info: RequestInfo): Promise<void> {
   return sendSecurityAlert([
     `<b>Выход на остальных устройствах</b> ${envLabel()}`,
+    who(info),
+  ]);
+}
+
+export function alertNewUser(email: string, info: RequestInfo): Promise<void> {
+  return sendSecurityAlert([
+    `<b>Новый пользователь по приглашению</b> ${envLabel()}`,
+    escapeHtml(email),
     who(info),
   ]);
 }

@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { ZodError } from "zod";
-import { UnauthorizedError } from "@/lib/session";
+import { ForbiddenError, UnauthorizedError } from "@/lib/session";
 
 export function badRequest(message: string) {
   return NextResponse.json({ error: message }, { status: 400 });
@@ -10,10 +10,13 @@ export function notFound(message = "Не найдено") {
   return NextResponse.json({ error: message }, { status: 404 });
 }
 
-/** Единый обработчик: zod-ошибки → 400 с человекочитаемым текстом, нет сессии → 401. */
+/** Единый обработчик: zod-ошибки → 400 с человекочитаемым текстом, нет сессии → 401, нет прав → 403. */
 export function handleError(error: unknown) {
   if (error instanceof UnauthorizedError) {
     return NextResponse.json({ error: error.message }, { status: 401 });
+  }
+  if (error instanceof ForbiddenError) {
+    return NextResponse.json({ error: error.message }, { status: 403 });
   }
   if (error instanceof ZodError) {
     const first = error.issues[0];

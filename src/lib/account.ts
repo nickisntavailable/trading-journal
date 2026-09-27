@@ -1,3 +1,4 @@
+import { ACCOUNT_DEFAULTS } from "@/lib/account-defaults";
 import { prisma } from "@/lib/prisma";
 import { attachOwnerAccount } from "@/lib/owner-setup";
 import { requireUser } from "@/lib/session";
@@ -12,12 +13,14 @@ export async function getAccount() {
   const account = await prisma.account.findUnique({ where: { userId: user.id } });
   if (account) return account;
 
-  // Настройка владельца создала пользователя, но упала до привязки счёта —
-  // досвязываем при первом обращении, чтобы не чинить базу руками.
+  // Учётка создана, а счёт — нет (упало между двумя шагами в /setup или при
+  // принятии приглашения). Досоздаём при первом обращении, чтобы не чинить
+  // базу руками. Владельцу достаётся существующий счёт со сделками.
   const ownerEmail = process.env.OWNER_EMAIL?.trim().toLowerCase();
   if (ownerEmail && user.email === ownerEmail) {
     await attachOwnerAccount(user.id);
-    return prisma.account.findUniqueOrThrow({ where: { userId: user.id } });
+  } else {
+    await prisma.account.create({ data: { userId: user.id, ...ACCOUNT_DEFAULTS } });
   }
-  throw new Error("У пользователя нет торгового счёта");
+  return prisma.account.findUniqueOrThrow({ where: { userId: user.id } });
 }

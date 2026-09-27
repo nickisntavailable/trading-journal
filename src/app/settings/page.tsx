@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { AppShell } from "@/components/app-shell";
 import { AccountSettingsForm } from "@/app/settings/account-settings-form";
 import { BalanceForm } from "@/app/settings/balance-form";
@@ -77,6 +78,17 @@ export default async function SettingsPage() {
           </div>
         )}
       </section>
+
+      {user.role === "admin" ? (
+        <section className="border-b border-rule py-5">
+          <div className="flex items-baseline justify-between gap-3">
+            <h2 className="text-[12px] text-ink-soft">Пользователи</h2>
+            <Link href="/settings/users" className="text-[13px] underline underline-offset-2">
+              Приглашения и доступы →
+            </Link>
+          </div>
+        </section>
+      ) : null}
 
       <section className="py-5">
         <div className="flex items-baseline justify-between gap-3">

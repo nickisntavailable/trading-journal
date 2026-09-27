@@ -38,10 +38,10 @@ export const config = {
   matcher: [
     /*
      * Всё, кроме:
-     * - входа и первой настройки: /login, /setup и их API
+     * - входа, первой настройки и приглашений: /login, /setup, /invite и их API
      * - /api/auth/* — эндпоинтов Better Auth, они проверяют сессию сами
      * - статики Next и favicon
      */
-    "/((?!login|setup|api/login|api/setup|api/auth|_next/static|_next/image|favicon.ico).*)",
+    "/((?!login|setup|invite|api/login|api/setup|api/invite|api/auth|_next/static|_next/image|favicon.ico).*)",
   ],
 };

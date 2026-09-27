@@ -18,7 +18,7 @@ export function AuthField({
         id={id}
         name={id}
         {...input}
-        className="num mt-1.5 w-full rounded-[3px] border border-rule bg-white px-2.5 py-2 text-[14px] outline-none focus:border-ink"
+        className="num mt-1.5 w-full rounded-[3px] border border-rule bg-white px-2.5 py-2 text-[14px] outline-none focus:border-ink read-only:bg-transparent read-only:text-ink-soft"
       />
       {hint ? <p className="mt-1 text-[11px] text-ink-soft">{hint}</p> : null}
     </div>

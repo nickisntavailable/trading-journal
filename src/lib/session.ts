@@ -23,6 +23,19 @@ export async function requireUser() {
   return session.user;
 }
 
+/** Сессия есть, но прав не хватает. API превращает её в 403. */
+export class ForbiddenError extends Error {
+  constructor() {
+    super("Недостаточно прав");
+  }
+}
+
+export async function requireAdmin() {
+  const user = await requireUser();
+  if (user.role !== "admin") throw new ForbiddenError();
+  return user;
+}
+
 /**
  * Активные сессии пользователя — для списка устройств в настройках.
  * Свежие сверху; текущую страница помечает по id.
