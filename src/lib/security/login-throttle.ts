@@ -81,7 +81,7 @@ export async function onFailure(info: RequestInfo): Promise<void> {
     await alertOnce("mass-failures", GLOBAL_WINDOW_MS, [
       `<b>Похоже на массовый перебор</b> ${envLabel()}`,
       `${globalFailures} неверных паролей за час с разных адресов.`,
-      "Вход не закрыт. Если это не ты — смени APP_PASSWORD и посмотри Vercel → Firewall.",
+      "Вход не закрыт. Если это не ты — посмотри Vercel → Firewall.",
     ]);
   }
 }
@@ -148,7 +148,7 @@ export async function afterSuccess(attemptId: string, info: RequestInfo): Promis
         `<b>Вход с нового адреса</b> ${envLabel()}`,
         who(info),
         seenCountry === 0 ? "Из этой страны раньше не входили." : "",
-        "Если это не ты — смени APP_PASSWORD.",
+        "Если это не ты — смени пароль и выйди со всех устройств.",
       ].filter(Boolean),
     );
   }
