@@ -31,9 +31,6 @@ export function RevokeSessionsButton() {
       >
         {pending ? "Выхожу…" : "Выйти на остальных устройствах"}
       </button>
-      <p className="mt-1 text-[11px] text-ink-soft">
-        Сессии удаляются сразу, но уже открытые страницы работают до 5 минут.
-      </p>
       {error ? <p className="mt-2 text-[12px] text-short">{error}</p> : null}
     </div>
   );

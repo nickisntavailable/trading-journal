@@ -7,8 +7,8 @@ import { auth } from "@/lib/better-auth";
  * С Next 16 это proxy.ts (бывший middleware.ts) и он работает в Node.js, а не
  * в урезанном edge-рантайме, — поэтому здесь можно проверить сессию целиком,
  * а не только наличие cookie. Подделанная cookie не пройдёт: подпись
- * проверяется секретом BETTER_AUTH_SECRET. Благодаря cookieCache в конфиге
- * это обычно обходится без запроса в базу.
+ * проверяется секретом BETTER_AUTH_SECRET, а сама сессия ищется в базе — так
+ * удалённая сессия (выход, смена пароля) перестаёт работать сразу.
  */
 export async function proxy(request: NextRequest) {
   const { response: session, headers } = await auth.api.getSession({
@@ -18,7 +18,7 @@ export async function proxy(request: NextRequest) {
 
   if (session) {
     const response = NextResponse.next();
-    // Проверка могла продлить сессию или обновить кеш — отдаём новые cookie.
+    // Проверка могла продлить сессию — отдаём обновлённые cookie.
     for (const cookie of headers.getSetCookie()) response.headers.append("set-cookie", cookie);
     return response;
   }

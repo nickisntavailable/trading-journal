@@ -84,7 +84,7 @@ export function PasswordForm({ email }: { email: string }) {
       </div>
 
       <p className="mt-2 text-[11px] text-ink-soft">
-        Минимум 8 символов. Остальные устройства разлогинятся в течение 5 минут.
+        Минимум 8 символов. Остальные устройства сразу разлогинятся.
       </p>
       {error ? <p className="mt-2 text-[12px] text-short">{error}</p> : null}
       {done ? <p className="mt-2 text-[12px] text-long">Пароль изменён</p> : null}
