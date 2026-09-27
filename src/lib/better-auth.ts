@@ -10,13 +10,21 @@ import { prisma } from "@/lib/prisma";
  * деплоя — его собственный и адрес ветки. Их Vercel кладёт в системные
  * переменные. По адресу Better Auth проверяет Origin у POST-запросов: чужой
  * сайт не сможет отправить форму от имени залогиненного пользователя.
+ *
+ * Адрес на превью выводится из заголовков запроса. Серверным вызовам без
+ * запроса (создание владельца в /setup) нужен запасной — адрес ветки.
  */
 function previewBaseURL() {
   if (process.env.VERCEL_ENV !== "preview") return undefined;
   const allowedHosts = [process.env.VERCEL_URL, process.env.VERCEL_BRANCH_URL].filter(
     (host): host is string => Boolean(host),
   );
-  return allowedHosts.length > 0 ? { allowedHosts, protocol: "https" as const } : undefined;
+  if (allowedHosts.length === 0) return undefined;
+  return {
+    allowedHosts,
+    protocol: "https" as const,
+    fallback: `https://${process.env.VERCEL_BRANCH_URL ?? process.env.VERCEL_URL}`,
+  };
 }
 
 /**
