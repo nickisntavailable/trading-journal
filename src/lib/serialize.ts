@@ -43,12 +43,30 @@ export type TradeDTO = {
   realizedRR: number | null;
 };
 
+/**
+ * Как закрыта часть позиции. Один список на весь проект: валидация API,
+ * DTO, форма и подписи берут его отсюда, чтобы новый тип не пришлось
+ * дописывать в шести местах.
+ */
+export const FIX_TYPES = ["manual", "stop", "breakeven"] as const;
+export type FixType = (typeof FIX_TYPES)[number];
+
+export const FIX_TYPE_LABELS: Record<FixType, string> = {
+  manual: "ручная",
+  stop: "стоп",
+  breakeven: "б/у",
+};
+
+function toFixType(value: string): FixType {
+  return (FIX_TYPES as readonly string[]).includes(value) ? (value as FixType) : "manual";
+}
+
 export type FixDTO = {
   id: string;
   tradeId: string;
   price: number;
   sizePct: number;
-  type: "manual" | "stop";
+  type: FixType;
   createdAt: string;
 };
 
@@ -105,7 +123,7 @@ export function fixToDTO(f: Fix): FixDTO {
     tradeId: f.tradeId,
     price: n(f.price),
     sizePct: n(f.sizePct),
-    type: f.type === "stop" ? "stop" : "manual",
+    type: toFixType(f.type),
     createdAt: f.createdAt.toISOString(),
   };
 }

@@ -5,7 +5,7 @@ import { useState } from "react";
 import { api, type TradeWithFixes } from "@/lib/query/api";
 import { queryKeys } from "@/lib/query/keys";
 import { clearCreation, trackCreation } from "@/lib/query/pending";
-import type { FixDTO, TradeDTO } from "@/lib/serialize";
+import type { FixDTO, FixType, TradeDTO } from "@/lib/serialize";
 import { applyFix, reconcileFix, removeFix, validateNewFix } from "@/lib/trade-local";
 
 /**
@@ -28,7 +28,7 @@ export type NewFixInput = {
   id: string;
   price: number;
   sizePct: number;
-  type: "manual" | "stop";
+  type: FixType;
 };
 
 /**

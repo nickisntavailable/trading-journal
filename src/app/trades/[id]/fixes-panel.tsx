@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { dateTime, money, price, signedMoney } from "@/lib/format";
 import type { useAddFix, useDeleteFix } from "@/lib/query/trade";
-import type { FixDTO } from "@/lib/serialize";
+import { FIX_TYPE_LABELS, type FixDTO, type FixType } from "@/lib/serialize";
 import { SwipeToDelete } from "@/components/swipe-to-delete";
 
 // Поля, кнопки типа и «Добавить» стоят в одном ряду — у всех одна высота,
@@ -39,6 +39,7 @@ export function FixesPanel({
   closedPct,
   positionSize,
   stopLoss,
+  entryPrice,
   addFix,
   deleteFix,
 }: {
@@ -48,12 +49,14 @@ export function FixesPanel({
   positionSize: number;
   /** Стоп сделки: по нему заполняется фиксация типа «стоп». */
   stopLoss: number;
+  /** Вход сделки: по нему заполняется фиксация типа «б/у». */
+  entryPrice: number;
   addFix: ReturnType<typeof useAddFix>;
   deleteFix: ReturnType<typeof useDeleteFix>;
 }) {
   const [fixPrice, setFixPrice] = useState("");
   const [sizePct, setSizePct] = useState("");
-  const [type, setType] = useState<"manual" | "stop">("manual");
+  const [type, setType] = useState<FixType>("manual");
 
   const remainingPct = Math.max(0, 100 - closedPct);
   const lastFixId = fixes.length > 0 ? fixes[fixes.length - 1].id : null;
@@ -72,11 +75,16 @@ export function FixesPanel({
   // Выбор «стоп» — это почти всегда закрытие остатка по цене стопа: подставляем
   // обе цифры, пользователю остаётся проверить и подтвердить. Поля остаются
   // редактируемыми — стоп мог исполниться с проскальзыванием.
-  function chooseStop() {
-    setType("stop");
-    setFixPrice(String(stopLoss));
-    setSizePct(String(remainder));
+  //
+  // «б/у» — то же самое, только по цене входа: стоп, переставленный в
+  // безубыток. Отдельный тип, чтобы потом в аналитике было видно, как часто
+  // позиции закрываются в ноль.
+  function chooseType(next: FixType) {
+    setType(next);
     setFormError(null);
+    if (next === "manual") return;
+    setFixPrice(String(next === "stop" ? stopLoss : entryPrice));
+    setSizePct(String(remainder));
   }
 
   function submitFix(event: React.FormEvent) {
@@ -190,7 +198,7 @@ export function FixesPanel({
                     <span>
                       <span className="num">{money((positionSize * fix.sizePct) / 100)}</span>
                       {" · "}
-                      {fix.type === "stop" ? "стоп" : "ручная"}
+                      {FIX_TYPE_LABELS[fix.type]}
                     </span>
                   </div>
                 </div>
@@ -237,7 +245,29 @@ export function FixesPanel({
 
       {status === "open" ? (
         <form onSubmit={submitFix} className="mt-4 max-w-[560px] border-t border-rule pt-4">
-          <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+          {/* Сначала тип: «стоп» и «б/у» сами заполняют поля ниже. */}
+          <div>
+            <span className="block text-[11px] text-ink-soft">Тип</span>
+            <div className="mt-1 grid max-w-[360px] grid-cols-3 gap-1.5">
+              {(Object.keys(FIX_TYPE_LABELS) as FixType[]).map((value) => (
+                <button
+                  key={value}
+                  type="button"
+                  onClick={() => chooseType(value)}
+                  className={
+                    `${CONTROL_HEIGHT} rounded-[3px] border px-2 text-[12px] ` +
+                    (type === value
+                      ? "border-ink text-ink"
+                      : "border-rule bg-white text-ink-soft")
+                  }
+                >
+                  {FIX_TYPE_LABELS[value]}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="mt-3 grid grid-cols-2 gap-3 md:grid-cols-3">
             <div>
               <label htmlFor="fixPrice" className="block text-[11px] text-ink-soft">
                 Цена
@@ -268,37 +298,7 @@ export function FixesPanel({
               />
             </div>
 
-            <div>
-              <span className="block text-[11px] text-ink-soft">Тип</span>
-              <div className="mt-1 grid grid-cols-2 gap-1.5">
-                <button
-                  type="button"
-                  onClick={() => setType("manual")}
-                  className={
-                    `${CONTROL_HEIGHT} rounded-[3px] border px-2 text-[12px] ` +
-                    (type === "manual"
-                      ? "border-ink text-ink"
-                      : "border-rule bg-white text-ink-soft")
-                  }
-                >
-                  ручная
-                </button>
-                <button
-                  type="button"
-                  onClick={chooseStop}
-                  className={
-                    `${CONTROL_HEIGHT} rounded-[3px] border px-2 text-[12px] ` +
-                    (type === "stop"
-                      ? "border-ink text-ink"
-                      : "border-rule bg-white text-ink-soft")
-                  }
-                >
-                  стоп
-                </button>
-              </div>
-            </div>
-
-            <div className="flex items-end">
+            <div className="col-span-2 flex items-end md:col-span-1">
               <button
                 type="submit"
                 disabled={!fixPrice || !sizePct}
