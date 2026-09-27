@@ -24,7 +24,14 @@ import {
 const inputClass =
   "num w-full rounded-[3px] border border-rule bg-white px-2.5 py-2 text-[14px] outline-none focus:border-ink";
 
-export function NewTradeForm({ account }: { account: AccountDTO }) {
+export function NewTradeForm({
+  account,
+  canParseScreenshots,
+}: {
+  account: AccountDTO;
+  /** Доступ к разбору скриншотов выдаёт админ; без него уровни вводятся руками. */
+  canParseScreenshots: boolean;
+}) {
   const createTrade = useCreateTrade();
   // Открытая сделка показывается на месте формы: перехода на другую страницу
   // и ожидания SSR нет, URL подменяется, чтобы обновление страницы работало.
@@ -247,14 +254,18 @@ export function NewTradeForm({ account }: { account: AccountDTO }) {
   return (
     <form onSubmit={onSubmit} className="mt-4 max-w-[560px]">
       <h1 className="mb-4 text-[13px] font-medium">Новая сделка</h1>
-      <ScreenshotBlock onParsed={applyParsed} onFailure={() => setShowLink(true)} />
-      <ScreenshotCandidates
-        parsed={parsed}
-        entryPrice={entryPrice}
-        stopLoss={stopLoss}
-        onPickEntry={(v) => setEntryPrice(String(v))}
-        onPickStop={(v) => setStopLoss(String(v))}
-      />
+      {canParseScreenshots ? (
+        <>
+          <ScreenshotBlock onParsed={applyParsed} onFailure={() => setShowLink(true)} />
+          <ScreenshotCandidates
+            parsed={parsed}
+            entryPrice={entryPrice}
+            stopLoss={stopLoss}
+            onPickEntry={(v) => setEntryPrice(String(v))}
+            onPickStop={(v) => setStopLoss(String(v))}
+          />
+        </>
+      ) : null}
 
       {showLink ? (
         <div className="border-b border-rule py-4">
@@ -276,7 +287,7 @@ export function NewTradeForm({ account }: { account: AccountDTO }) {
             hasLink={tvLink.trim().length > 0}
             currentPair={pair}
             onUsePair={setPair}
-            onParseSnapshot={parseSnapshot}
+            onParseSnapshot={canParseScreenshots ? parseSnapshot : undefined}
             parsingSnapshot={parsingSnapshot}
             snapshotError={snapshotError}
           />
@@ -451,11 +462,19 @@ function LinkReadout({
   hasLink: boolean;
   currentPair: string;
   onUsePair: (value: string) => void;
-  onParseSnapshot: () => void;
+  /** Нет — разбор не подключён: ссылка просто сохраняется со сделкой. */
+  onParseSnapshot?: () => void;
   parsingSnapshot: boolean;
   snapshotError: string | null;
 }) {
   if (!hasLink) {
+    if (!onParseSnapshot) {
+      return (
+        <p className="mt-1.5 text-[11px] text-ink-soft">
+          Ссылка сохранится вместе со сделкой — по ней потом удобно открыть график.
+        </p>
+      );
+    }
     return (
       <p className="mt-1.5 text-[11px] text-ink-soft">
         Запасной путь, если со скриншотом не вышло: снимок графика
@@ -477,6 +496,11 @@ function LinkReadout({
 
   // Снимок: у него нет символа в адресе, зато есть картинка со всей разметкой.
   if (info.snapshotId) {
+    if (!onParseSnapshot) {
+      return (
+        <p className="mt-1.5 text-[11px] text-ink-soft">Снимок сохранится вместе со сделкой.</p>
+      );
+    }
     return (
       <div className="mt-1.5">
         <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
@@ -522,12 +546,14 @@ function LinkReadout({
         <p className="text-[11px] text-ink-soft">В адресе нет символа — заполни пару вручную.</p>
       )}
 
-      <p className="mt-1 text-[11px] text-ink-soft">
-        Это ссылка на живой график: уровни из неё не вытащить, картинки по такому адресу
-        не существует. Чтобы разобрать разметку, сделай снимок — в TradingView Alt+S или
-        иконка фотоаппарата → «Скопировать ссылку на изображение графика», получится
-        адрес вида <span className="num">tradingview.com/x/…</span>.
-      </p>
+      {onParseSnapshot ? (
+        <p className="mt-1 text-[11px] text-ink-soft">
+          Это ссылка на живой график: уровни из неё не вытащить, картинки по такому адресу
+          не существует. Чтобы разобрать разметку, сделай снимок — в TradingView Alt+S или
+          иконка фотоаппарата → «Скопировать ссылку на изображение графика», получится
+          адрес вида <span className="num">tradingview.com/x/…</span>.
+        </p>
+      ) : null}
     </div>
   );
 }

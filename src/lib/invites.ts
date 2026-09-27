@@ -1,16 +1,9 @@
-import { createHash, randomBytes } from "node:crypto";
 import { ACCOUNT_DEFAULTS } from "@/lib/account-defaults";
 import { auth } from "@/lib/better-auth";
 import { prisma } from "@/lib/prisma";
+import { hashToken, newToken } from "@/lib/tokens";
 
-/**
- * Приглашения по ссылке.
- *
- * Токен — 32 случайных байта, в ссылке в base64url. В базе только SHA-256 от
- * него: подобрать 256 бит нельзя, а утёкшая база не даёт рабочих ссылок.
- * Медленный хеш, как у паролей, здесь не нужен — токен случайный, перебирать
- * по словарю нечего.
- */
+/** Приглашения по ссылке. Как устроен токен — в src/lib/tokens.ts. */
 export const INVITE_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 
 export class InviteError extends Error {
@@ -20,10 +13,6 @@ export class InviteError extends Error {
   ) {
     super(message);
   }
-}
-
-function hashToken(token: string): string {
-  return createHash("sha256").update(token).digest("hex");
 }
 
 export function normalizeEmail(email: string): string {
@@ -53,7 +42,7 @@ export async function createInvite(rawEmail: string, createdById: string): Promi
     throw new InviteError("У этой почты уже есть учётка", 409);
   }
 
-  const token = randomBytes(32).toString("base64url");
+  const { token, tokenHash } = newToken();
   const now = new Date();
   await prisma.$transaction([
     prisma.invite.updateMany({
@@ -63,7 +52,7 @@ export async function createInvite(rawEmail: string, createdById: string): Promi
     prisma.invite.create({
       data: {
         email,
-        tokenHash: hashToken(token),
+        tokenHash,
         createdById,
         expiresAt: new Date(now.getTime() + INVITE_TTL_MS),
       },

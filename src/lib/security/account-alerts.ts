@@ -28,3 +28,12 @@ export function alertNewUser(email: string, info: RequestInfo): Promise<void> {
     who(info),
   ]);
 }
+
+export function alertPasswordReset(email: string, info: RequestInfo): Promise<void> {
+  return sendSecurityAlert([
+    `<b>Пароль сброшен по ссылке</b> ${envLabel()}`,
+    escapeHtml(email),
+    who(info),
+    "Все прежние сессии этого пользователя удалены.",
+  ]);
+}

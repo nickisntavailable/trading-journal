@@ -111,22 +111,23 @@ model SecurityAlert {
 }
 
 model User {
-  id                  String        @id
+  id                  String          @id
   name                String
   email               String
-  emailVerified       Boolean       @default(false)
+  emailVerified       Boolean         @default(false)
   image               String?
-  createdAt           DateTime      @default(now())
-  updatedAt           DateTime      @updatedAt
+  createdAt           DateTime        @default(now())
+  updatedAt           DateTime        @updatedAt
   role                String?
-  banned              Boolean?      @default(false)
+  banned              Boolean?        @default(false)
   banReason           String?
   banExpires          DateTime?
-  canParseScreenshots Boolean?      @default(false)
+  canParseScreenshots Boolean?        @default(false)
   sessions            Session[]
   authaccounts        AuthAccount[]
   tradingAccount      Account?
   invitesCreated      Invite[]
+  passwordResets      PasswordReset[]
 
   @@unique([email])
   @@map("user")
@@ -205,4 +206,18 @@ model Invite {
   revokedAt   DateTime?
 
   @@index([email])
+}
+
+// Ссылка для сброса пароля, её выдаёт админ (писем приложение не шлёт).
+// Как и у приглашения, хранится только SHA-256 токена. Одноразовая, 24 часа.
+model PasswordReset {
+  id        String    @id @default(cuid())
+  userId    String
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tokenHash String    @unique
+  createdAt DateTime  @default(now())
+  expiresAt DateTime
+  usedAt    DateTime?
+
+  @@index([userId])
 }

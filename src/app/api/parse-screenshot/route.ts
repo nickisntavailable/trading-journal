@@ -3,6 +3,7 @@ import Anthropic from "@anthropic-ai/sdk";
 import { z } from "zod";
 import { handleError, badRequest } from "@/lib/api";
 import { fetchTradingViewSnapshot, SnapshotError } from "@/lib/tradingview-snapshot";
+import { requireUser } from "@/lib/session";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -75,6 +76,12 @@ const MAX_BYTES = 5 * 1024 * 1024;
 
 export async function POST(request: Request) {
   try {
+    // Каждый разбор стоит денег — доступ выдаёт админ (Настройки → Пользователи).
+    const user = await requireUser();
+    if (!user.canParseScreenshots) {
+      return NextResponse.json({ error: "Разбор скриншотов не подключён" }, { status: 403 });
+    }
+
     const apiKey = process.env.ANTHROPIC_API_KEY;
     if (!apiKey) {
       return NextResponse.json(
