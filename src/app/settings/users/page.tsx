@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { AppShell } from "@/components/app-shell";
 import { InviteForm } from "@/app/settings/users/invite-form";
 import { RevokeInviteButton } from "@/app/settings/users/revoke-invite-button";
+import { UserControls } from "@/app/settings/users/user-controls";
 import { shortDate } from "@/lib/format";
 import { inviteStatus, type InviteStatus } from "@/lib/invites";
 import { prisma } from "@/lib/prisma";
@@ -81,14 +82,20 @@ export default async function UsersPage() {
         <h2 className="text-[12px] text-ink-soft">Пользователи</h2>
         <div className="mt-3">
           {users.map((user) => (
-            <div
-              key={user.id}
-              className="flex items-baseline justify-between gap-3 border-b border-rule py-2 text-[13px] first:border-t"
-            >
-              <span className="min-w-0 truncate">{user.email}</span>
-              <span className="num shrink-0 text-[12px] text-ink-soft">
-                {user.role === "admin" ? "админ" : `с ${shortDate(user.createdAt)}`}
-              </span>
+            <div key={user.id} className="border-b border-rule py-2 text-[13px] first:border-t">
+              <div className="flex items-baseline justify-between gap-3">
+                <span className="min-w-0 truncate">{user.email}</span>
+                <span className="num shrink-0 text-[12px] text-ink-soft">
+                  {user.role === "admin" ? "админ" : `с ${shortDate(user.createdAt)}`}
+                </span>
+              </div>
+              <UserControls
+                userId={user.id}
+                email={user.email}
+                canParseScreenshots={user.canParseScreenshots === true}
+                isSelf={user.id === session.user.id}
+                isAdmin={user.role === "admin"}
+              />
             </div>
           ))}
         </div>
