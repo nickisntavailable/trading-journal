@@ -44,6 +44,11 @@ export async function POST(request: Request) {
     const emailOk = secretsMatch(body.email, ownerEmail);
     const appPasswordOk = secretsMatch(body.appPassword, process.env.APP_PASSWORD!);
     if (!emailOk || !appPasswordOk) {
+      // Клиенту — одинаковый ответ, а в логи Vercel — что именно не совпало
+      // (без самих значений), чтобы владелец мог разобраться с переменными.
+      console.warn(
+        `setup: не совпало — ${[!emailOk && "почта (OWNER_EMAIL)", !appPasswordOk && "пароль (APP_PASSWORD)"].filter(Boolean).join(", ")}`,
+      );
       after(() => onFailure(info));
       await failureDelay();
       return NextResponse.json(
