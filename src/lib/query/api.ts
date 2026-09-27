@@ -1,5 +1,5 @@
 import { awaitCreation } from "@/lib/query/pending";
-import type { FixDTO, TradeDTO } from "@/lib/serialize";
+import type { FixDTO, FixType, TradeDTO } from "@/lib/serialize";
 
 export type TradeWithFixes = { trade: TradeDTO; fixes: FixDTO[] };
 
@@ -30,7 +30,7 @@ export const api = {
 
   addFix: async (
     tradeId: string,
-    body: { id: string; price: number; sizePct: number; type: "manual" | "stop" },
+    body: { id: string; price: number; sizePct: number; type: FixType },
   ) => {
     await awaitCreation(tradeId);
     return request<{ fix: FixDTO; trade: TradeDTO; closed: boolean }>(

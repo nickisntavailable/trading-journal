@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { getAccount } from "@/lib/account";
-import { fixToDTO, tradeToDTO } from "@/lib/serialize";
+import { FIX_TYPES, fixToDTO, tradeToDTO } from "@/lib/serialize";
 import { handleError, notFound } from "@/lib/api";
 import { closeTrade, type Direction } from "@/lib/trading-math";
 
@@ -12,7 +12,7 @@ const bodySchema = z.object({
   id: z.string().uuid().optional(),
   price: z.number().finite().positive(),
   sizePct: z.number().finite().gt(0).max(100),
-  type: z.enum(["manual", "stop"]),
+  type: z.enum(FIX_TYPES),
 });
 
 // Decimal(5,2): сравниваем с допуском в половину младшего разряда.
