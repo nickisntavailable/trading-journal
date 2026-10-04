@@ -12,6 +12,10 @@ import type { TradeWithFixes } from "@/lib/query/api";
 import { useCreateTrade } from "@/lib/query/trade";
 import type { AccountDTO, TradeDTO } from "@/lib/serialize";
 import { parseTradingViewLink } from "@/lib/tradingview-link";
+import { TagPicker } from "@/components/tag-picker";
+import { useCreateTag, useTags } from "@/lib/query/review";
+import { NOTE_MAX } from "@/lib/review-limits";
+import type { TagDTO } from "@/lib/tags";
 import {
   margin,
   positionSize,
@@ -27,10 +31,12 @@ const inputClass =
 export function NewTradeForm({
   account,
   canParseScreenshots,
+  initialTags,
 }: {
   account: AccountDTO;
   /** Доступ к разбору скриншотов выдаёт админ; без него уровни вводятся руками. */
   canParseScreenshots: boolean;
+  initialTags: TagDTO[];
 }) {
   const createTrade = useCreateTrade();
   // Открытая сделка показывается на месте формы: перехода на другую страницу
@@ -44,6 +50,11 @@ export function NewTradeForm({
   const [riskPct, setRiskPct] = useState(account.baseRiskPct);
   const [leverage, setLeverage] = useState(String(account.defaultLeverage));
   const [tvLink, setTvLink] = useState("");
+  // «Почему вход» — необязательно, можно дописать потом на странице сделки.
+  const [tagIds, setTagIds] = useState<string[]>([]);
+  const [note, setNote] = useState("");
+  const { data: tags = [] } = useTags(initialTags);
+  const createTag = useCreateTag();
   const [parsed, setParsed] = useState<ParsedScreenshot | null>(null);
   const [error, setError] = useState<string | null>(null);
   // Поля, на которые ругнулись при отправке: подсвечиваются, пока не заполнены.
@@ -195,7 +206,7 @@ export function NewTradeForm({
       positionSize: positionSizeValue,
       leverage: lev,
       tvLink: tvLink.trim() ? tvLink.trim() : null,
-      note: null,
+      note: note.trim() ? note : null,
       status: "open",
       createdAt: new Date().toISOString(),
       closedAt: null,
@@ -206,7 +217,7 @@ export function NewTradeForm({
       realizedAvgExit: null,
       realizedRR: null,
     };
-    const snapshot: TradeWithFixes = { trade, fixes: [], tagIds: [] };
+    const snapshot: TradeWithFixes = { trade, fixes: [], tagIds };
 
     setOpened(snapshot);
     window.history.replaceState(null, "", `/trades/${trade.id}`);
@@ -221,8 +232,24 @@ export function NewTradeForm({
         riskPct,
         leverage: lev,
         ...(trade.tvLink ? { tvLink: trade.tvLink } : {}),
+        ...(trade.note ? { note: trade.note } : {}),
+        ...(tagIds.length ? { tagIds } : {}),
       },
     });
+  }
+
+  function toggleTag(tagId: string) {
+    setTagIds((current) =>
+      current.includes(tagId) ? current.filter((id) => id !== tagId) : [...current, tagId],
+    );
+  }
+
+  async function createAndGetId(name: string): Promise<string | null> {
+    try {
+      return (await createTag.mutateAsync(name)).tag.id;
+    } catch {
+      return null; // ошибка видна под блоком (createTag.error)
+    }
   }
 
   function backToForm() {
@@ -425,6 +452,32 @@ export function NewTradeForm({
           value={preview?.margin !== null && preview?.margin !== undefined ? money(preview.margin) : "—"}
         />
         <Readout label="Дистанция" value={preview ? pct(preview.distancePct) : "—"} />
+      </div>
+
+      <div className="border-b border-rule py-4">
+        <p className="text-[13px] font-medium">Почему вход</p>
+        <div className="mt-2">
+          <TagPicker
+            tags={tags}
+            selectedIds={tagIds}
+            onToggle={toggleTag}
+            onCreate={createAndGetId}
+          />
+        </div>
+        <textarea
+          aria-label="Заметка"
+          placeholder="Заметка — необязательно"
+          rows={2}
+          maxLength={NOTE_MAX}
+          value={note}
+          onChange={(e) => setNote(e.target.value)}
+          className="mt-3 w-full resize-y rounded-[3px] border border-rule bg-white px-2.5 py-2 text-[14px] leading-[1.45] outline-none focus:border-ink"
+        />
+        {createTag.error ? (
+          <p className="mt-1 text-[12px] text-short">
+            Тег не создался: {createTag.error.message}
+          </p>
+        ) : null}
       </div>
 
       {preview?.stopError ? (

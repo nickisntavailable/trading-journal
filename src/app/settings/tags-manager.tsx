@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { plural } from "@/lib/format";
+import { TAG_NAME_MAX } from "@/lib/review-limits";
 import type { TagDTO } from "@/lib/tags";
 
 const chipClass = "num rounded-[3px] border border-ink px-2 py-0.5 text-[12px]";
@@ -91,7 +92,7 @@ export function TagsManager({ tags }: { tags: TagDTO[] }) {
         <input
           aria-label="Новый тег"
           placeholder="новый тег"
-          maxLength={32}
+          maxLength={TAG_NAME_MAX}
           autoCapitalize="none"
           value={name}
           onChange={(e) => setName(e.target.value)}

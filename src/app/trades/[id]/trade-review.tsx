@@ -2,17 +2,13 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useCreateTag, useSaveNote, useTags, useToggleTradeTag } from "@/lib/query/review";
+import { TagPicker } from "@/components/tag-picker";
+import { NOTE_MAX } from "@/lib/review-limits";
 import type { TagDTO } from "@/lib/tags";
 
 /** Пауза в наборе, после которой заметка сохраняется сама. */
 const NOTE_SAVE_DELAY_MS = 800;
 const COLLAPSED_KEY = "tj.review.collapsed";
-
-const chipBase = "num rounded-[3px] border px-2 py-1 text-[12px] leading-none";
-const chipOn = chipBase + " border-ink text-ink";
-const chipOff = chipBase + " border-rule bg-white text-ink-soft";
-/** Архивный тег, который остался в этой сделке: виден, снимается, но не выбирается заново. */
-const chipArchived = chipBase + " border-dashed border-rule text-ink-soft";
 
 /**
  * «Разбор»: теги причин входа и заметка. Правится когда угодно — при открытии,
@@ -36,8 +32,6 @@ export function TradeReview({
   const collapsed = useCollapsed();
 
   const selected = new Set(tagIds);
-  // Выбор — активные теги; архивные показываем, только если они уже в сделке.
-  const visible = tags.filter((tag) => !tag.archived || selected.has(tag.id));
   const selectedNames = tags.filter((tag) => selected.has(tag.id)).map((tag) => tag.name);
 
   const {
@@ -49,23 +43,11 @@ export function TradeReview({
     error: noteError,
   } = useNoteAutosave(tradeId, note ?? "");
 
-  const [adding, setAdding] = useState(false);
-  const [newName, setNewName] = useState("");
-
-  async function addTag(event: React.FormEvent) {
-    event.preventDefault();
-    const name = newName.trim();
-    if (!name) {
-      setAdding(false);
-      return;
-    }
+  async function createAndGetId(name: string): Promise<string | null> {
     try {
-      const { tag } = await createTag.mutateAsync(name);
-      if (!selected.has(tag.id)) toggle.toggle(tag.id);
-      setNewName("");
-      setAdding(false);
+      return (await createTag.mutateAsync(name)).tag.id;
     } catch {
-      // Ошибка видна под блоком (createTag.error), поле остаётся открытым.
+      return null; // ошибка видна под блоком (createTag.error)
     }
   }
 
@@ -108,61 +90,13 @@ export function TradeReview({
         </span>
       </div>
 
-      <div className="mt-3 flex flex-wrap gap-1.5">
-        {visible.map((tag) => {
-          const on = selected.has(tag.id);
-          return (
-            <button
-              key={tag.id}
-              type="button"
-              aria-pressed={on}
-              onClick={() => toggle.toggle(tag.id)}
-              className={on ? (tag.archived ? chipArchived : chipOn) : chipOff}
-              title={tag.archived ? "Тег в архиве — снимается, но заново не выбирается" : undefined}
-            >
-              {tag.name}
-            </button>
-          );
-        })}
-
-        {adding ? (
-          <form onSubmit={addTag} className="flex items-center gap-1.5">
-            <input
-              autoFocus
-              aria-label="Новый тег"
-              placeholder="новый тег"
-              maxLength={32}
-              autoCapitalize="none"
-              value={newName}
-              onChange={(e) => setNewName(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Escape") {
-                  setNewName("");
-                  setAdding(false);
-                }
-              }}
-              onBlur={() => {
-                if (!newName.trim()) setAdding(false);
-              }}
-              className="num w-[140px] rounded-[3px] border border-ink bg-white px-2 py-1 text-[12px] outline-none"
-            />
-            <button
-              type="submit"
-              disabled={createTag.isPending}
-              className="text-[12px] underline underline-offset-2 disabled:opacity-40"
-            >
-              {createTag.isPending ? "…" : "ок"}
-            </button>
-          </form>
-        ) : (
-          <button
-            type="button"
-            onClick={() => setAdding(true)}
-            className={chipBase + " border-dashed border-rule text-ink-soft hover:border-ink"}
-          >
-            + тег
-          </button>
-        )}
+      <div className="mt-3">
+        <TagPicker
+          tags={tags}
+          selectedIds={tagIds}
+          onToggle={toggle.toggle}
+          onCreate={createAndGetId}
+        />
       </div>
 
       <textarea
@@ -170,7 +104,7 @@ export function TradeReview({
         aria-label="Заметка"
         placeholder="Почему вход, что видел на графике, что пошло не так…"
         rows={3}
-        maxLength={5000}
+        maxLength={NOTE_MAX}
         value={noteText}
         onChange={(e) => changeNote(e.target.value)}
         onBlur={flushNote}

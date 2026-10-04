@@ -3,8 +3,7 @@ import { z } from "zod";
 import { getAccount } from "@/lib/account";
 import { handleError, notFound } from "@/lib/api";
 import { prisma } from "@/lib/prisma";
-
-export const NOTE_MAX = 5000;
+import { NOTE_MAX } from "@/lib/review-limits";
 
 const bodySchema = z.object({
   note: z.string().max(NOTE_MAX, `Заметка — не длиннее ${NOTE_MAX} символов`),
