@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { getAccount } from "@/lib/account";
 import { tradeToDTO } from "@/lib/serialize";
 import { badRequest, handleError } from "@/lib/api";
+import { NOTE_MAX } from "@/lib/review-limits";
 import {
   positionSize,
   riskAmount,
@@ -53,6 +54,9 @@ const createSchema = z.object({
   riskPct: z.number().finite().gt(0).max(100),
   leverage: z.number().finite().gt(0).max(500).optional(),
   tvLink: z.string().trim().url().max(500).optional().or(z.literal("")),
+  // «Почему вход» прямо при открытии — необязательно, можно дописать потом.
+  note: z.string().max(NOTE_MAX, `Заметка — не длиннее ${NOTE_MAX} символов`).optional(),
+  tagIds: z.array(z.string().min(1).max(64)).max(50).optional(),
 });
 
 export async function POST(request: Request) {
@@ -90,6 +94,17 @@ export async function POST(request: Request) {
     );
     const leverage = body.leverage ?? Number(account.defaultLeverage);
 
+    // Только свои активные теги. Чужие и архивные молча отбрасываем: тег могли
+    // отправить в архив в соседней вкладке, и это не повод не открыть сделку.
+    const tagIds = body.tagIds?.length
+      ? (
+          await prisma.tag.findMany({
+            where: { id: { in: body.tagIds }, accountId: account.id, archivedAt: null },
+            select: { id: true },
+          })
+        ).map((tag) => tag.id)
+      : [];
+
     const trade = await prisma.trade.create({
       data: {
         ...(body.id ? { id: body.id } : {}),
@@ -105,7 +120,9 @@ export async function POST(request: Request) {
         positionSize: positionSizeValue,
         leverage,
         tvLink: body.tvLink ? body.tvLink : null,
+        note: body.note?.trim() ? body.note : null,
         status: "open",
+        tags: { create: tagIds.map((tagId) => ({ tagId })) },
       },
     });
 

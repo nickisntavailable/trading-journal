@@ -1,11 +1,11 @@
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
+import { TAG_NAME_MAX } from "@/lib/review-limits";
 
 /**
  * Теги причин входа. Набор у каждого счёта свой, имена храним в нижнем
  * регистре: «FVG» и «fvg» — один тег. Удаление — архив, см. схему.
  */
-export const TAG_NAME_MAX = 32;
 
 export const tagNameSchema = z
   .string()
