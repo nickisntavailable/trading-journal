@@ -9,6 +9,8 @@ import { getAccount } from "@/lib/account";
 import { dateTime, money, signedMoney } from "@/lib/format";
 import { prisma } from "@/lib/prisma";
 import { accountToDTO } from "@/lib/serialize";
+import { listTags } from "@/lib/tags";
+import { TagsManager } from "@/app/settings/tags-manager";
 import { describeUserAgent } from "@/lib/security/request-info";
 import { listUserSessions } from "@/lib/session";
 
@@ -30,6 +32,7 @@ export default async function SettingsPage() {
     take: 100,
   });
   const { user, sessions, currentSessionId } = await listUserSessions();
+  const tags = await listTags(account.id);
 
   return (
     <AppShell>
@@ -38,6 +41,11 @@ export default async function SettingsPage() {
       <section className="border-b border-rule py-5">
         <h2 className="text-[12px] text-ink-soft">Параметры аккаунта</h2>
         <AccountSettingsForm account={accountToDTO(account)} />
+      </section>
+
+      <section className="border-b border-rule py-5">
+        <h2 className="text-[12px] text-ink-soft">Теги причин входа</h2>
+        <TagsManager tags={tags} />
       </section>
 
       <section className="border-b border-rule py-5">

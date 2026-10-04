@@ -22,6 +22,7 @@ model Account {
   user            User?          @relation(fields: [userId], references: [id])
   trades          Trade[]
   balanceEvents   BalanceEvent[]
+  tags            Tag[]
 }
 
 model BalanceEvent {
@@ -52,6 +53,7 @@ model Trade {
   positionSize   Decimal   @db.Decimal(18, 2) // номинал позиции; на риск плечо не влияет
   leverage       Decimal   @default(5) @db.Decimal(5, 2) // маржа = positionSize / leverage
   tvLink         String?
+  note           String? // разбор: почему вход, что пошло не так — свободный текст
   status         String    @default("open") // "open" | "closed"
   createdAt      DateTime  @default(now())
   closedAt       DateTime?
@@ -65,6 +67,7 @@ model Trade {
   realizedRR         Decimal? @db.Decimal(8, 4)
 
   fixes Fix[]
+  tags  TradeTag[]
 
   @@index([accountId, status])
 }
@@ -220,4 +223,30 @@ model PasswordReset {
   usedAt    DateTime?
 
   @@index([userId])
+}
+
+// Тег причины входа (fvg, ob, cme…). Набор у каждого счёта свой. Удаление —
+// это архив: тег пропадает из выбора, но остаётся в старых сделках, чтобы
+// потом считать по нему статистику.
+model Tag {
+  id         String     @id @default(cuid())
+  accountId  String
+  account    Account    @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  name       String // в нижнем регистре, без лишних пробелов
+  archivedAt DateTime?
+  createdAt  DateTime   @default(now())
+  trades     TradeTag[]
+
+  @@unique([accountId, name])
+}
+
+model TradeTag {
+  tradeId   String
+  trade     Trade    @relation(fields: [tradeId], references: [id], onDelete: Cascade)
+  tagId     String
+  tag       Tag      @relation(fields: [tagId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@id([tradeId, tagId])
+  @@index([tagId])
 }
