@@ -6,6 +6,7 @@ import { ProgressBar } from "@/components/progress-bar";
 import { EditTradeForm } from "@/app/trades/[id]/edit-trade-form";
 import { FixesPanel } from "@/app/trades/[id]/fixes-panel";
 import { TradeReview } from "@/app/trades/[id]/trade-review";
+import { EntriesPanel } from "@/app/trades/[id]/entries-panel";
 import { dateTime, money, pct, price, rMultiple, signedMoney, signedPct } from "@/lib/format";
 import type { TradeWithFixes } from "@/lib/query/api";
 import type { TagDTO } from "@/lib/tags";
@@ -20,9 +21,12 @@ import { fixNetPnL, margin, realizedSoFar, stopDistancePct } from "@/lib/trading
 export function TradeView({
   initialData,
   initialTags,
+  defaultRiskPct,
   creation = null,
 }: {
   initialData: TradeWithFixes;
+  /** Базовый риск счёта — подставляется в форму добора. */
+  defaultRiskPct: number;
   /** Теги счёта с сервера; без них блок «Разбор» запросит их сам. */
   initialTags?: TagDTO[];
   /** Сделка открыта оптимистично и сервер её отверг — показать причину и выходы. */
@@ -32,7 +36,7 @@ export function TradeView({
   const addFix = useAddFix(initialData.trade.id);
   const deleteFix = useDeleteFix(initialData.trade.id);
 
-  const { trade, fixes, tagIds } = data;
+  const { trade, fixes, tagIds, entries } = data;
   const closedPct = closedPctOf(fixes);
 
   // Результат по каждой фиксации и по закрытой части — теми же формулами, что
@@ -80,7 +84,10 @@ export function TradeView({
       </div>
 
       <section className="grid grid-cols-2 gap-x-4 gap-y-4 border-b border-rule py-4 md:grid-cols-6">
-        <Param label="Вход" value={price(trade.entryPrice)} />
+        <Param
+          label={entries.length > 1 ? "Вход · средний" : "Вход"}
+          value={price(trade.entryPrice)}
+        />
         <Param label="Стоп-лосс" value={price(trade.stopLoss)} />
         <Param label="Дистанция" value={pct(stopDistancePct(trade.entryPrice, trade.stopLoss))} />
         <Param label="Риск" value={`${money(trade.riskAmount)} · ${pct(trade.riskPct)}`} />
@@ -100,9 +107,16 @@ export function TradeView({
 
       {trade.status === "open" ? (
         <section className="border-b border-rule py-4">
-          <EditTradeForm trade={trade} hasFixes={fixes.length > 0} />
+          <EditTradeForm trade={trade} hasFixes={fixes.length > 0} entries={entries} />
         </section>
       ) : null}
+
+      <EntriesPanel
+        trade={trade}
+        entries={entries}
+        canChange={trade.status === "open" && fixes.length === 0}
+        defaultRiskPct={defaultRiskPct}
+      />
 
       <section className="border-b border-rule py-4">
         <div className="flex items-baseline justify-between">

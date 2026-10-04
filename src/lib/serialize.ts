@@ -1,4 +1,4 @@
-import type { Account, BalanceEvent, Fix, Trade } from "@prisma/client";
+import type { Account, BalanceEvent, Fix, Trade, TradeEntry } from "@prisma/client";
 import type { Direction } from "@/lib/trading-math";
 
 /**
@@ -137,6 +137,25 @@ export function balanceEventToDTO(e: BalanceEvent): BalanceEventDTO {
     amount: n(e.amount),
     relatedTradeId: e.relatedTradeId,
     note: e.note,
+    createdAt: e.createdAt.toISOString(),
+  };
+}
+
+export type EntryDTO = {
+  id: string;
+  price: number;
+  /** Номинал входа, $. Количество монет = size / price. */
+  size: number;
+  riskPct: number;
+  createdAt: string;
+};
+
+export function entryToDTO(e: TradeEntry): EntryDTO {
+  return {
+    id: e.id,
+    price: n(e.price),
+    size: n(e.size),
+    riskPct: n(e.riskPct),
     createdAt: e.createdAt.toISOString(),
   };
 }

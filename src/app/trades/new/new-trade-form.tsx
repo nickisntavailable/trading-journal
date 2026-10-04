@@ -218,7 +218,22 @@ export function NewTradeForm({
       realizedAvgExit: null,
       realizedRR: null,
     };
-    const snapshot: TradeWithFixes = { trade, fixes: [], tagIds };
+    const snapshot: TradeWithFixes = {
+      trade,
+      fixes: [],
+      tagIds,
+      // Первый вход — локальный, с временным id: снять его нельзя, а
+      // настоящий придёт с первым ответом сервера по входам.
+      entries: [
+        {
+          id: `first:${trade.id}`,
+          price: entry,
+          size: positionSizeValue,
+          riskPct,
+          createdAt: trade.createdAt,
+        },
+      ],
+    };
 
     setOpened(snapshot);
     window.history.replaceState(null, "", `/trades/${trade.id}`);
@@ -266,6 +281,7 @@ export function NewTradeForm({
   if (opened) {
     return (
       <TradeView
+        defaultRiskPct={account.baseRiskPct}
         initialData={opened}
         creation={
           createTrade.isError
