@@ -195,6 +195,7 @@ export function NewTradeForm({
       positionSize: positionSizeValue,
       leverage: lev,
       tvLink: tvLink.trim() ? tvLink.trim() : null,
+      note: null,
       status: "open",
       createdAt: new Date().toISOString(),
       closedAt: null,
@@ -205,7 +206,7 @@ export function NewTradeForm({
       realizedAvgExit: null,
       realizedRR: null,
     };
-    const snapshot: TradeWithFixes = { trade, fixes: [] };
+    const snapshot: TradeWithFixes = { trade, fixes: [], tagIds: [] };
 
     setOpened(snapshot);
     window.history.replaceState(null, "", `/trades/${trade.id}`);

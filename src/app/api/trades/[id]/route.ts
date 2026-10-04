@@ -21,13 +21,17 @@ export async function GET(
 
     const trade = await prisma.trade.findFirst({
       where: { id, accountId: account.id },
-      include: { fixes: { orderBy: { createdAt: "asc" } } },
+      include: {
+        fixes: { orderBy: { createdAt: "asc" } },
+        tags: { select: { tagId: true }, orderBy: { createdAt: "asc" } },
+      },
     });
     if (!trade) return notFound("Сделка не найдена");
 
     return NextResponse.json({
       trade: tradeToDTO(trade),
       fixes: trade.fixes.map(fixToDTO),
+      tagIds: trade.tags.map((t) => t.tagId),
     });
   } catch (error) {
     return handleError(error);

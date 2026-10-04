@@ -32,6 +32,7 @@ export type TradeDTO = {
   positionSize: number;
   leverage: number;
   tvLink: string | null;
+  note: string | null;
   status: "open" | "closed";
   createdAt: string;
   closedAt: string | null;
@@ -105,6 +106,7 @@ export function tradeToDTO(t: Trade): TradeDTO {
     positionSize: n(t.positionSize),
     leverage: n(t.leverage),
     tvLink: t.tvLink,
+    note: t.note,
     status: t.status === "closed" ? "closed" : "open",
     createdAt: t.createdAt.toISOString(),
     closedAt: t.closedAt ? t.closedAt.toISOString() : null,

@@ -7,6 +7,7 @@ import { closeTrade } from "@/lib/trading-math";
  * поэтому после подтверждения цифры не «прыгают».
  */
 
+/** Минимум для расчётов; остальные поля кеша (теги) функции ниже пропускают как есть. */
 export type TradeSnapshot = { trade: TradeDTO; fixes: FixDTO[] };
 
 // Тот же допуск, что и на сервере: Decimal(5,2).
@@ -29,16 +30,17 @@ export function validateNewFix(snapshot: TradeSnapshot, sizePct: number): string
 }
 
 /** Добавляет фиксацию; при достижении 100% закрывает сделку и считает результат. */
-export function applyFix(snapshot: TradeSnapshot, fix: FixDTO): TradeSnapshot {
+export function applyFix<T extends TradeSnapshot>(snapshot: T, fix: FixDTO): T {
   const fixes = [...snapshot.fixes, fix];
   const totalPct = closedPctOf(fixes);
 
   if (totalPct < 100 - EPS) {
-    return { trade: snapshot.trade, fixes };
+    return { ...snapshot, fixes };
   }
 
   const result = closeTrade(snapshot.trade, fixes);
   return {
+    ...snapshot,
     fixes,
     trade: {
       ...snapshot.trade,
@@ -54,17 +56,18 @@ export function applyFix(snapshot: TradeSnapshot, fix: FixDTO): TradeSnapshot {
   };
 }
 
-export function removeFix(snapshot: TradeSnapshot, fixId: string): TradeSnapshot {
-  return { trade: snapshot.trade, fixes: snapshot.fixes.filter((f) => f.id !== fixId) };
+export function removeFix<T extends TradeSnapshot>(snapshot: T, fixId: string): T {
+  return { ...snapshot, fixes: snapshot.fixes.filter((f) => f.id !== fixId) };
 }
 
 /** Ответ сервера заменяет оптимистичные данные: id совпадает, поля — серверные. */
-export function reconcileFix(
-  snapshot: TradeSnapshot,
+export function reconcileFix<T extends TradeSnapshot>(
+  snapshot: T,
   server: { fix: FixDTO; trade: TradeDTO },
-): TradeSnapshot {
+): T {
   const known = snapshot.fixes.some((f) => f.id === server.fix.id);
   return {
+    ...snapshot,
     trade: server.trade,
     fixes: known
       ? snapshot.fixes.map((f) => (f.id === server.fix.id ? server.fix : f))
