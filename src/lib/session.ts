@@ -1,6 +1,7 @@
 import { headers } from "next/headers";
 import { cache } from "react";
 import { auth } from "@/lib/better-auth";
+import { prisma } from "@/lib/prisma";
 
 /**
  * Текущая сессия. `cache` — чтобы страница и её хелперы в рамках одного
@@ -39,11 +40,19 @@ export async function requireAdmin() {
 /**
  * Активные сессии пользователя — для списка устройств в настройках.
  * Свежие сверху; текущую страница помечает по id.
+ *
+ * Читаем из базы напрямую, а не через auth.api.listSessions: тот требует
+ * «свежую» сессию — вход не раньше суток назад (freshAge). Живая, но
+ * вчерашняя сессия получала 403, и /settings падал с 500. Для показа своих
+ * же устройств такая строгость не нужна.
  */
 export async function listUserSessions() {
   const session = await getSession();
   if (!session) throw new UnauthorizedError();
-  const sessions = await auth.api.listSessions({ headers: await headers() });
-  sessions.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+  const sessions = await prisma.session.findMany({
+    where: { userId: session.user.id, expiresAt: { gt: new Date() } },
+    select: { id: true, userAgent: true, createdAt: true },
+    orderBy: { createdAt: "desc" },
+  });
   return { user: session.user, sessions, currentSessionId: session.session.id };
 }
