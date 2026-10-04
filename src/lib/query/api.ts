@@ -1,7 +1,12 @@
 import { awaitCreation } from "@/lib/query/pending";
 import type { FixDTO, FixType, TradeDTO } from "@/lib/serialize";
+import type { TagDTO } from "@/lib/tags";
 
-export type TradeWithFixes = { trade: TradeDTO; fixes: FixDTO[] };
+/**
+ * Сделка в кеше. Теги лежат рядом, а не внутри trade: ответы на правку
+ * сделки тегов не содержат и иначе затирали бы их.
+ */
+export type TradeWithFixes = { trade: TradeDTO; fixes: FixDTO[]; tagIds: string[] };
 
 /** Ошибка API с текстом, который сервер подготовил для показа пользователю. */
 export class ApiError extends Error {
@@ -46,6 +51,29 @@ export const api = {
 
   createTrade: (body: Record<string, unknown>) =>
     request<{ trade: TradeDTO }>("/api/trades", { method: "POST", body: JSON.stringify(body) }),
+
+  setNote: async (tradeId: string, note: string) => {
+    await awaitCreation(tradeId);
+    return request<{ note: string | null }>(`/api/trades/${tradeId}/note`, {
+      method: "PUT",
+      body: JSON.stringify({ note }),
+    });
+  },
+
+  setTradeTag: async (tradeId: string, tagId: string, on: boolean) => {
+    await awaitCreation(tradeId);
+    return request<{ ok: true }>(`/api/trades/${tradeId}/tags/${tagId}`, {
+      method: on ? "PUT" : "DELETE",
+    });
+  },
+
+  getTags: () => request<{ tags: TagDTO[] }>("/api/tags"),
+
+  createTag: (name: string) =>
+    request<{ tag: { id: string; name: string } }>("/api/tags", {
+      method: "POST",
+      body: JSON.stringify({ name }),
+    }),
 
   updateTrade: async (id: string, body: Record<string, unknown>) => {
     await awaitCreation(id);

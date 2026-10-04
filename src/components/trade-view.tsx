@@ -5,8 +5,10 @@ import { DirectionTag } from "@/components/direction-tag";
 import { ProgressBar } from "@/components/progress-bar";
 import { EditTradeForm } from "@/app/trades/[id]/edit-trade-form";
 import { FixesPanel } from "@/app/trades/[id]/fixes-panel";
+import { TradeReview } from "@/app/trades/[id]/trade-review";
 import { dateTime, money, pct, price, rMultiple, signedMoney, signedPct } from "@/lib/format";
 import type { TradeWithFixes } from "@/lib/query/api";
+import type { TagDTO } from "@/lib/tags";
 import { useAddFix, useDeleteFix, useTrade } from "@/lib/query/trade";
 import { closedPctOf } from "@/lib/trade-local";
 import { fixNetPnL, margin, realizedSoFar, stopDistancePct } from "@/lib/trading-math";
@@ -17,9 +19,12 @@ import { fixNetPnL, margin, realizedSoFar, stopDistancePct } from "@/lib/trading
  */
 export function TradeView({
   initialData,
+  initialTags,
   creation = null,
 }: {
   initialData: TradeWithFixes;
+  /** Теги счёта с сервера; без них блок «Разбор» запросит их сам. */
+  initialTags?: TagDTO[];
   /** Сделка открыта оптимистично и сервер её отверг — показать причину и выходы. */
   creation?: { message: string; retry: () => void; back: () => void } | null;
 }) {
@@ -27,7 +32,7 @@ export function TradeView({
   const addFix = useAddFix(initialData.trade.id);
   const deleteFix = useDeleteFix(initialData.trade.id);
 
-  const { trade, fixes } = data;
+  const { trade, fixes, tagIds } = data;
   const closedPct = closedPctOf(fixes);
 
   // Результат по каждой фиксации и по закрытой части — теми же формулами, что
@@ -85,6 +90,13 @@ export function TradeView({
           value={money(margin(trade.positionSize, trade.leverage))}
         />
       </section>
+
+      <TradeReview
+        tradeId={trade.id}
+        tagIds={tagIds}
+        note={trade.note}
+        initialTags={initialTags}
+      />
 
       {trade.status === "open" ? (
         <section className="border-b border-rule py-4">
