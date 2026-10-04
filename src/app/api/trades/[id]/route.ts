@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { getAccount } from "@/lib/account";
-import { fixToDTO, tradeToDTO } from "@/lib/serialize";
+import { entryToDTO, fixToDTO, tradeToDTO } from "@/lib/serialize";
 import { positionFromEntries, validateEntriesAgainstStop } from "@/lib/entries-math";
 import { badRequest, handleError, notFound } from "@/lib/api";
 import {
@@ -25,6 +25,7 @@ export async function GET(
       include: {
         fixes: { orderBy: { createdAt: "asc" } },
         tags: { select: { tagId: true }, orderBy: { createdAt: "asc" } },
+        entries: { orderBy: { createdAt: "asc" } },
       },
     });
     if (!trade) return notFound("Сделка не найдена");
@@ -33,6 +34,7 @@ export async function GET(
       trade: tradeToDTO(trade),
       fixes: trade.fixes.map(fixToDTO),
       tagIds: trade.tags.map((t) => t.tagId),
+      entries: trade.entries.map(entryToDTO),
     });
   } catch (error) {
     return handleError(error);

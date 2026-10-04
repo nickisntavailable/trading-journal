@@ -3,7 +3,8 @@
 import { useMemo, useState } from "react";
 import { money, pct } from "@/lib/format";
 import { useUpdateTrade } from "@/lib/query/trade";
-import type { TradeDTO } from "@/lib/serialize";
+import { positionFromEntries, validateEntriesAgainstStop } from "@/lib/entries-math";
+import type { EntryDTO, TradeDTO } from "@/lib/serialize";
 import {
   margin,
   positionSize,
@@ -22,10 +23,16 @@ const inputClass =
 export function EditTradeForm({
   trade,
   hasFixes,
+  entries,
 }: {
   trade: TradeDTO;
   hasFixes: boolean;
+  entries: EntryDTO[];
 }) {
+  // Несколько входов: вход средний, риск — следствие входов и стопа. Здесь
+  // правятся только стоп, пара, плечо и ссылка; ошибку во входе исправляют
+  // снятием добора.
+  const multi = entries.length > 1;
   const update = useUpdateTrade(trade.id);
   const [open, setOpen] = useState(false);
   const [pair, setPair] = useState(trade.pair);
@@ -42,19 +49,32 @@ export function EditTradeForm({
     const entry = Number(entryPrice);
     const stop = Number(stopLoss);
     const risk = Number(riskPct);
+    const lev = Number(leverage);
+    const marginOf = (size: number) => (Number.isFinite(lev) && lev > 0 ? margin(size, lev) : null);
+
+    if (multi) {
+      if (!Number.isFinite(stop) || stop <= 0) return null;
+      const position = positionFromEntries(entries, stop, trade.direction, trade.depositAtEntry);
+      return {
+        risk: position.riskAmount,
+        size: position.positionSize,
+        margin: marginOf(position.positionSize),
+        stopError: validateEntriesAgainstStop(entries, stop, trade.direction),
+      };
+    }
+
     if (![entry, stop, risk].every(Number.isFinite)) return null;
     if (entry <= 0 || stop <= 0 || entry === stop || risk <= 0) return null;
 
     const riskAmountValue = riskAmount(trade.depositAtEntry, risk);
     const size = positionSize(riskAmountValue, entry, stop);
-    const lev = Number(leverage);
     return {
       risk: riskAmountValue,
       size,
-      margin: Number.isFinite(lev) && lev > 0 ? margin(size, lev) : null,
+      margin: marginOf(size),
       stopError: validateStopDirection(entry, stop, direction),
     };
-  }, [entryPrice, stopLoss, riskPct, leverage, direction, trade.depositAtEntry]);
+  }, [entryPrice, stopLoss, riskPct, leverage, direction, multi, entries, trade.direction, trade.depositAtEntry]);
 
   function onSubmit(event: React.FormEvent) {
     event.preventDefault();
@@ -62,10 +82,11 @@ export function EditTradeForm({
     update.mutate(
       {
         pair: pair.trim(),
-        direction,
-        entryPrice: Number(entryPrice),
+        // У позиции из нескольких входов эти поля не правятся — не отправляем.
+        ...(multi
+          ? {}
+          : { direction, entryPrice: Number(entryPrice), riskPct: Number(riskPct) }),
         stopLoss: Number(stopLoss),
-        riskPct: Number(riskPct),
         ...(Number(leverage) > 0 ? { leverage: Number(leverage) } : {}),
         tvLink: tvLink.trim() ? tvLink.trim() : null,
       },
@@ -77,11 +98,26 @@ export function EditTradeForm({
     );
   }
 
+  // Поля заполняем из текущей сделки при каждом открытии: с момента первой
+  // отрисовки её могли поменять (добор, перенос стопа), и старые значения
+  // в форме откатили бы это при сохранении.
+  function openForm() {
+    setPair(trade.pair);
+    setDirection(trade.direction);
+    setEntryPrice(String(trade.entryPrice));
+    setStopLoss(String(trade.stopLoss));
+    setRiskPct(String(trade.riskPct));
+    setLeverage(String(trade.leverage));
+    setTvLink(trade.tvLink ?? "");
+    setError(null);
+    setOpen(true);
+  }
+
   if (!open) {
     return (
       <button
         type="button"
-        onClick={() => setOpen(true)}
+        onClick={openForm}
         className="text-[12px] text-ink-soft underline underline-offset-2 hover:text-ink"
       >
         Изменить параметры
@@ -109,6 +145,7 @@ export function EditTradeForm({
           <div className="mt-1 grid grid-cols-2 gap-1.5">
             <button
               type="button"
+              disabled={multi}
               onClick={() => setDirection(1)}
               className={
                 "rounded-[3px] border px-2 py-2 text-[12px] " +
@@ -121,6 +158,7 @@ export function EditTradeForm({
             </button>
             <button
               type="button"
+              disabled={multi}
               onClick={() => setDirection(-1)}
               className={
                 "rounded-[3px] border px-2 py-2 text-[12px] " +
@@ -143,9 +181,10 @@ export function EditTradeForm({
             type="number"
             step="0.01"
             inputMode="decimal"
-            value={riskPct}
+            value={multi ? String(trade.riskPct) : riskPct}
+            readOnly={multi}
             onChange={(e) => setRiskPct(e.target.value)}
-            className={inputClass + " mt-1"}
+            className={inputClass + " mt-1 read-only:bg-transparent read-only:text-ink-soft"}
           />
         </div>
 
@@ -167,16 +206,17 @@ export function EditTradeForm({
 
         <div>
           <label htmlFor="editEntry" className="block text-[11px] text-ink-soft">
-            Цена входа
+            {multi ? "Вход · средний" : "Цена входа"}
           </label>
           <input
             id="editEntry"
             type="number"
             step="any"
             inputMode="decimal"
-            value={entryPrice}
+            value={multi ? String(trade.entryPrice) : entryPrice}
+            readOnly={multi}
             onChange={(e) => setEntryPrice(e.target.value)}
-            className={inputClass + " mt-1"}
+            className={inputClass + " mt-1 read-only:bg-transparent read-only:text-ink-soft"}
           />
         </div>
 
@@ -218,6 +258,13 @@ export function EditTradeForm({
         <span className="num">{preview ? money(preview.size) : "—"}</span>, маржа{" "}
         <span className="num">{preview?.margin != null ? money(preview.margin) : "—"}</span>.
       </p>
+
+      {multi ? (
+        <p className="mt-2 text-[11px] text-ink-soft">
+          Входов несколько: при переносе стопа количество монет не меняется, пересчитывается риск.
+          Ошибку во входе исправляют снятием добора.
+        </p>
+      ) : null}
 
       {hasFixes ? (
         <p className="mt-2 text-[11px] text-amber">

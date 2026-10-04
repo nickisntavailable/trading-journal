@@ -3,7 +3,7 @@ import { AppShell } from "@/components/app-shell";
 import { TradeView } from "@/components/trade-view";
 import { getAccount } from "@/lib/account";
 import { prisma } from "@/lib/prisma";
-import { fixToDTO, tradeToDTO } from "@/lib/serialize";
+import { entryToDTO, fixToDTO, tradeToDTO } from "@/lib/serialize";
 import { listTags } from "@/lib/tags";
 
 export const dynamic = "force-dynamic";
@@ -25,6 +25,7 @@ export default async function TradePage({
     include: {
       fixes: { orderBy: { createdAt: "asc" } },
       tags: { select: { tagId: true }, orderBy: { createdAt: "asc" } },
+      entries: { orderBy: { createdAt: "asc" } },
     },
   });
   if (!row) notFound();
@@ -37,8 +38,10 @@ export default async function TradePage({
           trade: tradeToDTO(row),
           fixes: row.fixes.map(fixToDTO),
           tagIds: row.tags.map((t) => t.tagId),
+          entries: row.entries.map(entryToDTO),
         }}
         initialTags={tags}
+        defaultRiskPct={Number(account.baseRiskPct)}
       />
     </AppShell>
   );

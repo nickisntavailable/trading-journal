@@ -139,7 +139,9 @@ export function useCreateTrade() {
     },
     onSuccess: (data, { snapshot }) => {
       queryClient.setQueryData<TradeWithFixes>(queryKeys.trade(snapshot.trade.id), (current) =>
-        current ? { ...current, trade: data.trade } : { trade: data.trade, fixes: [], tagIds: [] },
+        current
+          ? { ...current, trade: data.trade }
+          : { trade: data.trade, fixes: [], tagIds: [], entries: [] },
       );
     },
     onError: (_error, { snapshot }) => {
