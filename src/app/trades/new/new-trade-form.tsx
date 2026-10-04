@@ -13,6 +13,7 @@ import { useCreateTrade } from "@/lib/query/trade";
 import type { AccountDTO, TradeDTO } from "@/lib/serialize";
 import { parseTradingViewLink } from "@/lib/tradingview-link";
 import { TagPicker } from "@/components/tag-picker";
+import { TagSuggestions } from "@/components/tag-suggestions";
 import { useCreateTag, useTags } from "@/lib/query/review";
 import { NOTE_MAX } from "@/lib/review-limits";
 import type { TagDTO } from "@/lib/tags";
@@ -473,6 +474,7 @@ export function NewTradeForm({
           onChange={(e) => setNote(e.target.value)}
           className="mt-3 w-full resize-y rounded-[3px] border border-rule bg-white px-2.5 py-2 text-[14px] leading-[1.45] outline-none focus:border-ink"
         />
+        <TagSuggestions note={note} tags={tags} selectedIds={tagIds} onPick={toggleTag} />
         {createTag.error ? (
           <p className="mt-1 text-[12px] text-short">
             Тег не создался: {createTag.error.message}

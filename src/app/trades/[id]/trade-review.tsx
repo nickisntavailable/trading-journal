@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useCreateTag, useSaveNote, useTags, useToggleTradeTag } from "@/lib/query/review";
 import { TagPicker } from "@/components/tag-picker";
+import { TagSuggestions } from "@/components/tag-suggestions";
 import { NOTE_MAX } from "@/lib/review-limits";
 import type { TagDTO } from "@/lib/tags";
 
@@ -109,6 +110,12 @@ export function TradeReview({
         onChange={(e) => changeNote(e.target.value)}
         onBlur={flushNote}
         className="mt-3 w-full resize-none overflow-hidden rounded-[3px] border border-rule bg-white px-2.5 py-2 text-[14px] leading-[1.45] outline-none focus:border-ink"
+      />
+      <TagSuggestions
+        note={noteText}
+        tags={tags}
+        selectedIds={tagIds}
+        onPick={toggle.toggle}
       />
 
       {error ? (
