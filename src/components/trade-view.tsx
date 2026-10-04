@@ -7,6 +7,7 @@ import { EditTradeForm } from "@/app/trades/[id]/edit-trade-form";
 import { FixesPanel } from "@/app/trades/[id]/fixes-panel";
 import { TradeReview } from "@/app/trades/[id]/trade-review";
 import { EntriesPanel } from "@/app/trades/[id]/entries-panel";
+import { MergePanel, type MergeCandidate } from "@/app/trades/[id]/merge-panel";
 import { dateTime, money, pct, price, rMultiple, signedMoney, signedPct } from "@/lib/format";
 import type { TradeWithFixes } from "@/lib/query/api";
 import type { TagDTO } from "@/lib/tags";
@@ -22,11 +23,14 @@ export function TradeView({
   initialData,
   initialTags,
   defaultRiskPct,
+  mergeCandidates = [],
   creation = null,
 }: {
   initialData: TradeWithFixes;
   /** Базовый риск счёта — подставляется в форму добора. */
   defaultRiskPct: number;
+  /** Открытые сделки той же пары и направления без фиксаций — с ними можно объединить. */
+  mergeCandidates?: MergeCandidate[];
   /** Теги счёта с сервера; без них блок «Разбор» запросит их сам. */
   initialTags?: TagDTO[];
   /** Сделка открыта оптимистично и сервер её отверг — показать причину и выходы. */
@@ -109,6 +113,10 @@ export function TradeView({
         <section className="border-b border-rule py-4">
           <EditTradeForm trade={trade} hasFixes={fixes.length > 0} entries={entries} />
         </section>
+      ) : null}
+
+      {trade.status === "open" && fixes.length === 0 ? (
+        <MergePanel trade={trade} entries={entries} candidates={mergeCandidates} />
       ) : null}
 
       <EntriesPanel

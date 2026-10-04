@@ -99,6 +99,16 @@ export const api = {
     );
   },
 
+  mergeTrades: async (ids: [string, string]) => {
+    await Promise.all(ids.map((id) => awaitCreation(id)));
+    return request<{
+      trade: TradeDTO;
+      entries: EntryDTO[];
+      tagIds: string[];
+      removedId: string;
+    }>("/api/trades/merge", { method: "POST", body: JSON.stringify({ ids }) });
+  },
+
   updateTrade: async (id: string, body: Record<string, unknown>) => {
     await awaitCreation(id);
     return request<{ trade: TradeDTO }>(`/api/trades/${id}`, {

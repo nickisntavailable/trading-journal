@@ -106,3 +106,23 @@ export function useRemoveEntry(tradeId: string) {
     },
   });
 }
+
+/**
+ * Объединение двух сделок. Без оптимистики: действие необратимое, честнее
+ * дождаться ответа. Результат кладём в кеш сделки, к которой добавили, а
+ * удалённую убираем из кеша.
+ */
+export function useMergeTrades() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (ids: [string, string]) => api.mergeTrades(ids),
+    onSuccess: (data) => {
+      queryClient.setQueryData<TradeWithFixes>(queryKeys.trade(data.trade.id), (current) =>
+        current
+          ? { ...current, trade: data.trade, entries: data.entries, tagIds: data.tagIds }
+          : { trade: data.trade, fixes: [], entries: data.entries, tagIds: data.tagIds },
+      );
+      queryClient.removeQueries({ queryKey: queryKeys.trade(data.removedId) });
+    },
+  });
+}

@@ -31,6 +31,24 @@ export default async function TradePage({
   if (!row) notFound();
   const tags = await listTags(account.id);
 
+  // Кандидаты на объединение: открытые, та же пара и направление, без
+  // фиксаций — и только если у этой сделки фиксаций тоже нет.
+  const candidates =
+    row.status === "open" && row.fixes.length === 0
+      ? await prisma.trade.findMany({
+          where: {
+            accountId: account.id,
+            id: { not: row.id },
+            status: "open",
+            pair: row.pair,
+            direction: row.direction,
+            fixes: { none: {} },
+          },
+          include: { entries: { orderBy: { createdAt: "asc" } } },
+          orderBy: { createdAt: "asc" },
+        })
+      : [];
+
   return (
     <AppShell>
       <TradeView
@@ -42,6 +60,13 @@ export default async function TradePage({
         }}
         initialTags={tags}
         defaultRiskPct={Number(account.baseRiskPct)}
+        mergeCandidates={candidates.map((c) => ({
+          id: c.id,
+          createdAt: c.createdAt.toISOString(),
+          stopLoss: Number(c.stopLoss),
+          riskAmount: Number(c.riskAmount),
+          entries: c.entries.map(entryToDTO),
+        }))}
       />
     </AppShell>
   );
