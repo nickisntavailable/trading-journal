@@ -66,8 +66,9 @@ model Trade {
   realizedAvgExit    Decimal? @db.Decimal(18, 8)
   realizedRR         Decimal? @db.Decimal(8, 4)
 
-  fixes Fix[]
-  tags  TradeTag[]
+  fixes   Fix[]
+  tags    TradeTag[]
+  entries TradeEntry[]
 
   @@index([accountId, status])
 }
@@ -249,4 +250,20 @@ model TradeTag {
 
   @@id([tradeId, tagId])
   @@index([tagId])
+}
+
+// Вход в позицию. У сделки их может быть несколько (добор): как на бирже в
+// одностороннем режиме, это одна позиция со средним входом и одним стопом.
+// entryPrice, positionSize и riskAmount сделки — производные от входов и
+// стопа, пересчитываются при каждом изменении (src/lib/entries-math.ts).
+model TradeEntry {
+  id        String   @id @default(cuid())
+  tradeId   String
+  trade     Trade    @relation(fields: [tradeId], references: [id], onDelete: Cascade)
+  price     Decimal  @db.Decimal(18, 8)
+  size      Decimal  @db.Decimal(18, 2) // номинал этого входа, $
+  riskPct   Decimal  @db.Decimal(5, 2) // каким риском добирали — для истории
+  createdAt DateTime @default(now())
+
+  @@index([tradeId, createdAt])
 }
