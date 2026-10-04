@@ -231,6 +231,16 @@ async function main() {
           feeRateAtEntry: feeRate,
           riskAmount: riskAmountValue,
           positionSize: positionSizeValue,
+          entries: {
+            create: [
+              {
+                price: trade.entryPrice,
+                size: positionSizeValue,
+                riskPct: trade.riskPct,
+                createdAt: trade.date,
+              },
+            ],
+          },
           status: "closed",
           createdAt: trade.date,
           closedAt: trade.date,

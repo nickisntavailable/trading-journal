@@ -123,6 +123,10 @@ export async function POST(request: Request) {
         note: body.note?.trim() ? body.note : null,
         status: "open",
         tags: { create: tagIds.map((tagId) => ({ tagId })) },
+        // Первый вход. Добор потом добавит следующие.
+        entries: {
+          create: [{ price: body.entryPrice, size: positionSizeValue, riskPct: body.riskPct }],
+        },
       },
     });
 
