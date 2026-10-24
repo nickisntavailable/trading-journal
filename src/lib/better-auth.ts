@@ -41,19 +41,6 @@ export const auth = betterAuth({
   // чтобы не трогать наш код и не путать при чтении.
   account: { modelName: "authAccount" },
 
-  user: {
-    additionalFields: {
-      // Доступ к разбору скриншотов: каждый вызов стоит денег, поэтому право
-      // выдаёт админ точечно. Проверяться будет на сервере в /api/parse-screenshot.
-      canParseScreenshots: {
-        type: "boolean",
-        required: false,
-        defaultValue: false,
-        input: false, // пользователь не может выставить себе сам при регистрации
-      },
-    },
-  },
-
   emailAndPassword: {
     enabled: true,
     // Регистрация только по приглашению — само приглашение в отдельной задачке.

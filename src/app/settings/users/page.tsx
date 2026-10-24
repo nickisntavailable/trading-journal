@@ -92,7 +92,6 @@ export default async function UsersPage() {
               <UserControls
                 userId={user.id}
                 email={user.email}
-                canParseScreenshots={user.canParseScreenshots === true}
                 isSelf={user.id === session.user.id}
                 isAdmin={user.role === "admin"}
               />
