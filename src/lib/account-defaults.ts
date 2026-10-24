@@ -7,5 +7,6 @@ export const ACCOUNT_DEFAULTS = {
   baseRiskPct: "1.00",
   riskLimitPct: "3.00",
   defaultLeverage: "5",
-  feeRatePct: "0.0600",
+  makerFeePct: "0.0200",
+  takerFeePct: "0.0500",
 } as const;

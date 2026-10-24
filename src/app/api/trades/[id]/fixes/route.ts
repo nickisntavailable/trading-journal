@@ -2,9 +2,15 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { getAccount } from "@/lib/account";
-import { FIX_TYPES, fixToDTO, tradeToDTO } from "@/lib/serialize";
+import {
+  DEFAULT_FIX_ORDER_TYPE,
+  FIX_TYPES,
+  fixToDTO,
+  toOrderType,
+  tradeToDTO,
+} from "@/lib/serialize";
 import { handleError, notFound } from "@/lib/api";
-import { closeTrade, type Direction } from "@/lib/trading-math";
+import { closeTrade, ORDER_TYPES, type Direction } from "@/lib/trading-math";
 
 const bodySchema = z.object({
   // id генерирует клиент (uuid): оптимистичный UI показывает строку сразу, а
@@ -13,6 +19,8 @@ const bodySchema = z.object({
   price: z.number().finite().positive(),
   sizePct: z.number().finite().gt(0).max(100),
   type: z.enum(FIX_TYPES),
+  // Нет — по умолчанию для типа: ручная — лимит, стоп и б/у — рынок.
+  orderType: z.enum(ORDER_TYPES).optional(),
 });
 
 // Decimal(5,2): сравниваем с допуском в половину младшего разряда.
@@ -69,6 +77,7 @@ export async function POST(
           price: body.price,
           sizePct: body.sizePct,
           type: body.type,
+          orderType: body.orderType ?? DEFAULT_FIX_ORDER_TYPE[body.type],
         },
       });
 
@@ -80,6 +89,7 @@ export async function POST(
       const allFixes = [...trade.fixes, fix].map((f) => ({
         price: Number(f.price),
         sizePct: Number(f.sizePct),
+        orderType: toOrderType(f.orderType),
       }));
 
       const closed = closeTrade(
@@ -89,7 +99,9 @@ export async function POST(
           direction: (trade.direction === -1 ? -1 : 1) as Direction,
           positionSize: Number(trade.positionSize),
           depositAtEntry: Number(trade.depositAtEntry),
-          feeRateAtEntry: Number(trade.feeRateAtEntry),
+          makerFeePct: Number(trade.makerFeePct),
+          takerFeePct: Number(trade.takerFeePct),
+          entryFeeAmount: Number(trade.entryFeeAmount),
           riskAmount: Number(trade.riskAmount),
         },
         allFixes,

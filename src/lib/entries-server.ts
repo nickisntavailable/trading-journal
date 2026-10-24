@@ -5,7 +5,12 @@ import {
   validateEntriesAgainstStop,
 } from "@/lib/entries-math";
 import { entryToDTO, tradeToDTO } from "@/lib/serialize";
-import { validateStopDirection, type Direction } from "@/lib/trading-math";
+import {
+  feePctFor,
+  validateStopDirection,
+  type Direction,
+  type OrderType,
+} from "@/lib/trading-math";
 
 export class EntryError extends Error {
   constructor(
@@ -38,14 +43,18 @@ async function loadForChange(
   return trade;
 }
 
-function asInput(entries: { price: unknown; size: unknown }[]) {
-  return entries.map((e) => ({ price: Number(e.price), size: Number(e.size) }));
+function asInput(entries: { price: unknown; size: unknown; feePct: unknown }[]) {
+  return entries.map((e) => ({
+    price: Number(e.price),
+    size: Number(e.size),
+    feePct: Number(e.feePct),
+  }));
 }
 
 export async function addEntry(
   accountId: string,
   tradeId: string,
-  body: { id?: string; price: number; riskPct: number; stopLoss: number },
+  body: { id?: string; price: number; riskPct: number; stopLoss: number; orderType?: OrderType },
 ) {
   return prisma.$transaction(async (tx) => {
     const trade = await loadForChange(tx, accountId, tradeId);
@@ -62,12 +71,31 @@ export async function addEntry(
     if (own) throw new EntryError(`Добор: ${own.toLowerCase()}`);
 
     const depositAtEntry = Number(trade.depositAtEntry);
-    const add = entryForRisk(body.price, body.stopLoss, body.riskPct, depositAtEntry);
+    const orderType = body.orderType ?? "market";
+    const takerFeePct = Number(trade.takerFeePct);
+    const entryFeePct = feePctFor(
+      { makerFeePct: Number(trade.makerFeePct), takerFeePct },
+      orderType,
+    );
+    const add = entryForRisk(
+      body.price,
+      body.stopLoss,
+      body.riskPct,
+      depositAtEntry,
+      entryFeePct,
+      takerFeePct,
+    );
     const entries = [...asInput(trade.entries), add];
     const problem = validateEntriesAgainstStop(entries, body.stopLoss, direction);
     if (problem) throw new EntryError(problem);
 
-    const position = positionFromEntries(entries, body.stopLoss, direction, depositAtEntry);
+    const position = positionFromEntries(
+      entries,
+      body.stopLoss,
+      direction,
+      depositAtEntry,
+      takerFeePct,
+    );
     await tx.tradeEntry.create({
       data: {
         ...(body.id ? { id: body.id } : {}),
@@ -75,6 +103,8 @@ export async function addEntry(
         price: body.price,
         size: add.size,
         riskPct: body.riskPct,
+        orderType,
+        feePct: entryFeePct,
       },
     });
     const updated = await tx.trade.update({
@@ -103,7 +133,13 @@ export async function removeLastEntry(accountId: string, tradeId: string, entryI
       throw new EntryError(`Без этого добора стоп окажется не с той стороны: ${problem.toLowerCase()}`);
     }
 
-    const position = positionFromEntries(entries, stopLoss, direction, Number(trade.depositAtEntry));
+    const position = positionFromEntries(
+      entries,
+      stopLoss,
+      direction,
+      Number(trade.depositAtEntry),
+      Number(trade.takerFeePct),
+    );
     await tx.tradeEntry.delete({ where: { id: entryId } });
     const updated = await tx.trade.update({
       where: { id: tradeId },
@@ -158,6 +194,7 @@ export async function mergeTrades(accountId: string, ids: [string, string]) {
       stopLoss,
       direction,
       Number(first.depositAtEntry),
+      Number(first.takerFeePct),
     );
     const note = [first.note, last.note].filter((n) => n && n.trim()).join("\n\n");
 

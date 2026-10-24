@@ -4,19 +4,45 @@
 
 export type Direction = 1 | -1;
 
+/**
+ * Тип заявки определяет комиссию, как на бирже: лимитная — maker (дешевле),
+ * рыночная — taker. Стоп исполняется рынком, поэтому риск до стопа всегда
+ * считается по taker.
+ */
+export const ORDER_TYPES = ["market", "limit"] as const;
+export type OrderType = (typeof ORDER_TYPES)[number];
+
+export const ORDER_TYPE_LABELS: Record<OrderType, string> = {
+  market: "рынок",
+  limit: "лимит",
+};
+
+export type FeeRates = {
+  /** %, напр. 0.02 = 0,02% от номинала. */
+  makerFeePct: number;
+  takerFeePct: number;
+};
+
+export function feePctFor(rates: FeeRates, orderType: OrderType): number {
+  return orderType === "limit" ? rates.makerFeePct : rates.takerFeePct;
+}
+
 export type FixInput = {
   price: number;
   sizePct: number;
+  /** Нет — рынок (старые фиксации). */
+  orderType?: OrderType;
 };
 
-export type TradeMathInput = {
+export type TradeMathInput = FeeRates & {
   entryPrice: number;
   stopLoss: number;
   direction: Direction;
   positionSize: number;
   depositAtEntry: number;
-  feeRateAtEntry: number;
-  /** Планируемый убыток при срабатывании стопа — знаменатель R-мультипликатора. */
+  /** Уже уплаченные комиссии входов, $. */
+  entryFeeAmount: number;
+  /** Планируемый убыток при срабатывании стопа вместе с комиссиями — знаменатель R. */
   riskAmount: number;
 };
 
@@ -37,6 +63,10 @@ export function stopDistancePct(entryPrice: number, stopLoss: number): number {
   return (Math.abs(entryPrice - stopLoss) / entryPrice) * 100;
 }
 
+/**
+ * Номинал без учёта комиссий: на стопе уходит ровно риск только по цене.
+ * Так считались сделки до учёта комиссий в риске; нужен импорту истории.
+ */
 export function positionSize(
   riskAmountValue: number,
   entryPrice: number,
@@ -44,6 +74,44 @@ export function positionSize(
 ): number {
   return (riskAmountValue * entryPrice) / Math.abs(entryPrice - stopLoss);
 }
+
+/**
+ * Номинал, при котором на стопе вместе с комиссиями уходит ровно риск.
+ *
+ * Убыток на стопе = номинал × (d + fвх + fвых × стоп/вход), где d —
+ * расстояние до стопа в долях входа, fвх — комиссия входа, fвых — комиссия
+ * выхода по стопу (taker). Выход берётся с номинала по цене стопа: биржа
+ * считает комиссию от суммы сделки на выходе, а не на входе.
+ */
+export function positionSizeWithFees(
+  riskAmountValue: number,
+  entryPrice: number,
+  stopLoss: number,
+  entryFeePct: number,
+  exitFeePct: number,
+): number {
+  const distance = Math.abs(entryPrice - stopLoss) / entryPrice;
+  const fees = entryFeePct / 100 + (exitFeePct / 100) * (stopLoss / entryPrice);
+  return riskAmountValue / (distance + fees);
+}
+
+/** Из чего состоит потеря на стопе: движение цены и комиссии входа и выхода. */
+export function stopLossBreakdown(
+  size: number,
+  entryPrice: number,
+  stopLoss: number,
+  entryFeePct: number,
+  exitFeePct: number,
+): { price: number; fees: number; total: number; feesShare: number } {
+  const price = (size * Math.abs(entryPrice - stopLoss)) / entryPrice;
+  const fees =
+    (size * entryFeePct) / 100 + (size * (stopLoss / entryPrice) * exitFeePct) / 100;
+  const total = price + fees;
+  return { price, fees, total, feesShare: total > 0 ? fees / total : 0 };
+}
+
+/** Порог, после которого форма предупреждает: заметная доля риска — комиссии. */
+export const FEES_SHARE_WARNING = 0.25;
 
 /**
  * Маржа — та часть депозита, что реально уходит в сделку на бирже.
@@ -64,30 +132,29 @@ export function fixGrossPnL(
   return (direction * notional * (fixPrice - entryPrice)) / entryPrice;
 }
 
+/** Комиссия выхода — с номинала по цене выхода и по ставке типа заявки. */
 export function fixExitFee(
-  positionSizeValue: number,
-  fixSizePct: number,
-  feeRatePct: number,
+  trade: Pick<TradeMathInput, "positionSize" | "entryPrice" | "makerFeePct" | "takerFeePct">,
+  fix: FixInput,
 ): number {
-  const notional = (positionSizeValue * fixSizePct) / 100;
-  return (notional * feeRatePct) / 100;
-}
-
-export function entryFee(positionSizeValue: number, feeRatePct: number): number {
-  return (positionSizeValue * feeRatePct) / 100;
+  const exitNotional =
+    ((trade.positionSize * fix.sizePct) / 100) * (fix.price / trade.entryPrice);
+  return (exitNotional * feePctFor(trade, fix.orderType ?? "market")) / 100;
 }
 
 const sum = (values: number[]) => values.reduce((acc, v) => acc + v, 0);
+
+type FixTrade = Pick<
+  TradeMathInput,
+  "entryPrice" | "direction" | "positionSize" | "entryFeeAmount" | "makerFeePct" | "takerFeePct"
+>;
 
 /**
  * Чистый результат одной фиксации: её gross минус комиссия выхода минус
  * пропорциональная доля комиссии входа. Сумма по всем фиксациям при 100%
  * совпадает с netPnL из closeTrade.
  */
-export function fixNetPnL(
-  trade: Pick<TradeMathInput, "entryPrice" | "direction" | "positionSize" | "feeRateAtEntry">,
-  fix: FixInput,
-): number {
+export function fixNetPnL(trade: FixTrade, fix: FixInput): number {
   const gross = fixGrossPnL(
     trade.positionSize,
     fix.sizePct,
@@ -95,9 +162,8 @@ export function fixNetPnL(
     trade.entryPrice,
     trade.direction,
   );
-  const exitFee = fixExitFee(trade.positionSize, fix.sizePct, trade.feeRateAtEntry);
-  const entryFeeShare = (entryFee(trade.positionSize, trade.feeRateAtEntry) * fix.sizePct) / 100;
-  return gross - exitFee - entryFeeShare;
+  const entryFeeShare = (trade.entryFeeAmount * fix.sizePct) / 100;
+  return gross - fixExitFee(trade, fix) - entryFeeShare;
 }
 
 /**
@@ -105,10 +171,7 @@ export function fixNetPnL(
  * входит: без рыночной цены её результат неизвестен.
  */
 export function realizedSoFar(
-  trade: Pick<
-    TradeMathInput,
-    "entryPrice" | "direction" | "positionSize" | "feeRateAtEntry" | "riskAmount"
-  >,
+  trade: FixTrade & Pick<TradeMathInput, "riskAmount">,
   fixes: FixInput[],
 ): { netPnL: number; rMultiple: number; closedPct: number } {
   const netPnL = sum(fixes.map((fix) => fixNetPnL(trade, fix)));
@@ -123,23 +186,11 @@ export function realizedSoFar(
 export function closeTrade(trade: TradeMathInput, fixes: FixInput[]): CloseResult {
   const grossPnL = sum(
     fixes.map((f) =>
-      fixGrossPnL(
-        trade.positionSize,
-        f.sizePct,
-        f.price,
-        trade.entryPrice,
-        trade.direction,
-      ),
+      fixGrossPnL(trade.positionSize, f.sizePct, f.price, trade.entryPrice, trade.direction),
     ),
   );
 
-  const totalFees =
-    entryFee(trade.positionSize, trade.feeRateAtEntry) +
-    sum(
-      fixes.map((f) =>
-        fixExitFee(trade.positionSize, f.sizePct, trade.feeRateAtEntry),
-      ),
-    );
+  const totalFees = trade.entryFeeAmount + sum(fixes.map((f) => fixExitFee(trade, f)));
 
   const netPnL = grossPnL - totalFees;
   const netPnlPctOfDeposit = (netPnL / trade.depositAtEntry) * 100;
@@ -147,8 +198,7 @@ export function closeTrade(trade: TradeMathInput, fixes: FixInput[]): CloseResul
   const realizedAvgExit = sum(fixes.map((f) => f.price * f.sizePct)) / 100;
 
   // Знаковый R-мультипликатор: сколько запланированных рисков реально принесла
-  // сделка. Формула раздела 4 ТЗ брала модуль хода цены, из-за чего убыточная
-  // сделка получала положительный R:R и портила статистику в истории.
+  // сделка. Риск включает комиссии, поэтому выбитая по стопу сделка — ровно −1R.
   const realizedRR = trade.riskAmount !== 0 ? netPnL / trade.riskAmount : 0;
 
   return {

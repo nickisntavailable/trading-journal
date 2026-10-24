@@ -21,14 +21,16 @@ const patchSchema = z
   .object({
     baseRiskPct: z.number().gt(0).max(100).optional(),
     riskLimitPct: z.number().gt(0).max(100).optional(),
-    feeRatePct: z.number().min(0).max(10).optional(),
+    makerFeePct: z.number().min(0).max(10).optional(),
+    takerFeePct: z.number().min(0).max(10).optional(),
     defaultLeverage: z.number().gt(0).max(500).optional(),
   })
   .refine(
     (v) =>
       v.baseRiskPct !== undefined ||
       v.riskLimitPct !== undefined ||
-      v.feeRatePct !== undefined ||
+      v.makerFeePct !== undefined ||
+      v.takerFeePct !== undefined ||
       v.defaultLeverage !== undefined,
     { message: "Нечего обновлять" },
   );
@@ -43,7 +45,8 @@ export async function PATCH(request: Request) {
       data: {
         ...(body.baseRiskPct !== undefined ? { baseRiskPct: body.baseRiskPct } : {}),
         ...(body.riskLimitPct !== undefined ? { riskLimitPct: body.riskLimitPct } : {}),
-        ...(body.feeRatePct !== undefined ? { feeRatePct: body.feeRatePct } : {}),
+        ...(body.makerFeePct !== undefined ? { makerFeePct: body.makerFeePct } : {}),
+        ...(body.takerFeePct !== undefined ? { takerFeePct: body.takerFeePct } : {}),
         ...(body.defaultLeverage !== undefined ? { defaultLeverage: body.defaultLeverage } : {}),
       },
     });

@@ -3,6 +3,7 @@ import { z } from "zod";
 import { getAccount } from "@/lib/account";
 import { handleError } from "@/lib/api";
 import { addEntry, EntryError } from "@/lib/entries-server";
+import { ORDER_TYPES } from "@/lib/trading-math";
 
 const bodySchema = z.object({
   // id генерирует клиент (uuid): оптимистичный UI рисует вход сразу, повтор
@@ -11,6 +12,7 @@ const bodySchema = z.object({
   price: z.number().finite().positive(),
   riskPct: z.number().finite().gt(0).max(100),
   stopLoss: z.number().finite().positive(),
+  orderType: z.enum(ORDER_TYPES).optional(),
 });
 
 /** Добор в открытую сделку. */

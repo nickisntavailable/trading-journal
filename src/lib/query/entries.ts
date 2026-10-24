@@ -6,13 +6,20 @@ import { api, type TradeWithFixes } from "@/lib/query/api";
 import { queryKeys } from "@/lib/query/keys";
 import { serial } from "@/lib/query/serial";
 import type { EntryDTO, TradeDTO } from "@/lib/serialize";
+import { feePctFor, type OrderType } from "@/lib/trading-math";
 
 /** Поля сделки, пересчитанные из входов, — теми же формулами, что и сервер. */
 function recompute(trade: TradeDTO, entries: EntryDTO[], stopLoss: number): TradeDTO {
   return {
     ...trade,
     stopLoss,
-    ...positionFromEntries(entries, stopLoss, trade.direction, trade.depositAtEntry),
+    ...positionFromEntries(
+      entries,
+      stopLoss,
+      trade.direction,
+      trade.depositAtEntry,
+      trade.takerFeePct,
+    ),
   };
 }
 
@@ -28,7 +35,13 @@ export function useAddEntry(tradeId: string) {
   const key = queryKeys.trade(tradeId);
 
   return useMutation({
-    mutationFn: (input: { id: string; price: number; riskPct: number; stopLoss: number }) =>
+    mutationFn: (input: {
+      id: string;
+      price: number;
+      riskPct: number;
+      stopLoss: number;
+      orderType: OrderType;
+    }) =>
       serial(`trade-entries:${tradeId}`, () => api.addEntry(tradeId, input)),
 
     onMutate: async (input): Promise<{ previous?: Snapshot }> => {
@@ -36,12 +49,22 @@ export function useAddEntry(tradeId: string) {
       const current = queryClient.getQueryData<TradeWithFixes>(key);
       if (!current) return {};
 
-      const add = entryForRisk(input.price, input.stopLoss, input.riskPct, current.trade.depositAtEntry);
+      const entryFeePct = feePctFor(current.trade, input.orderType);
+      const add = entryForRisk(
+        input.price,
+        input.stopLoss,
+        input.riskPct,
+        current.trade.depositAtEntry,
+        entryFeePct,
+        current.trade.takerFeePct,
+      );
       const entry: EntryDTO = {
         id: input.id,
         price: add.price,
         size: add.size,
         riskPct: input.riskPct,
+        orderType: input.orderType,
+        feePct: entryFeePct,
         createdAt: new Date().toISOString(),
       };
       const entries = [...current.entries, entry];

@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { FEE_PRESETS, matchPreset } from "@/lib/fee-presets";
 import type { AccountDTO } from "@/lib/serialize";
 
 const inputClass =
@@ -11,7 +12,16 @@ export function AccountSettingsForm({ account }: { account: AccountDTO }) {
   const router = useRouter();
   const [baseRiskPct, setBaseRiskPct] = useState(String(account.baseRiskPct));
   const [riskLimitPct, setRiskLimitPct] = useState(String(account.riskLimitPct));
-  const [feeRatePct, setFeeRatePct] = useState(String(account.feeRatePct));
+  const [makerFeePct, setMakerFeePct] = useState(String(account.makerFeePct));
+  const [takerFeePct, setTakerFeePct] = useState(String(account.takerFeePct));
+  const preset = matchPreset(Number(makerFeePct), Number(takerFeePct));
+
+  function choosePreset(id: string) {
+    const next = FEE_PRESETS.find((p) => p.id === id);
+    if (!next) return;
+    setMakerFeePct(String(next.makerFeePct));
+    setTakerFeePct(String(next.takerFeePct));
+  }
   const [defaultLeverage, setDefaultLeverage] = useState(String(account.defaultLeverage));
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
@@ -29,7 +39,8 @@ export function AccountSettingsForm({ account }: { account: AccountDTO }) {
       body: JSON.stringify({
         baseRiskPct: Number(baseRiskPct),
         riskLimitPct: Number(riskLimitPct),
-        feeRatePct: Number(feeRatePct),
+        makerFeePct: Number(makerFeePct),
+        takerFeePct: Number(takerFeePct),
         defaultLeverage: Number(defaultLeverage),
       }),
     });
@@ -46,7 +57,7 @@ export function AccountSettingsForm({ account }: { account: AccountDTO }) {
 
   return (
     <form onSubmit={onSubmit} className="mt-3 max-w-[560px]">
-      <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-3">
         <div>
           <label htmlFor="baseRiskPct" className="block text-[11px] text-ink-soft">
             Базовый риск, %
@@ -76,20 +87,6 @@ export function AccountSettingsForm({ account }: { account: AccountDTO }) {
           />
         </div>
         <div>
-          <label htmlFor="feeRatePct" className="block text-[11px] text-ink-soft">
-            Комиссия, % за сторону
-          </label>
-          <input
-            id="feeRatePct"
-            type="number"
-            step="0.0001"
-            inputMode="decimal"
-            value={feeRatePct}
-            onChange={(e) => setFeeRatePct(e.target.value)}
-            className={inputClass + " mt-1"}
-          />
-        </div>
-        <div>
           <label htmlFor="defaultLeverage" className="block text-[11px] text-ink-soft">
             Плечо, ×
           </label>
@@ -104,14 +101,64 @@ export function AccountSettingsForm({ account }: { account: AccountDTO }) {
             className={inputClass + " mt-1"}
           />
         </div>
+        <div>
+          <label htmlFor="feePreset" className="block text-[11px] text-ink-soft">
+            Биржа
+          </label>
+          <select
+            id="feePreset"
+            value={preset?.id ?? "custom"}
+            onChange={(e) => choosePreset(e.target.value)}
+            className={inputClass + " mt-1"}
+          >
+            {FEE_PRESETS.map((p) => (
+              <option key={p.id} value={p.id}>
+                {p.label}
+              </option>
+            ))}
+            <option value="custom" disabled>
+              свои ставки
+            </option>
+          </select>
+        </div>
+        <div>
+          <label htmlFor="makerFeePct" className="block text-[11px] text-ink-soft">
+            Лимит (maker), %
+          </label>
+          <input
+            id="makerFeePct"
+            type="number"
+            step="0.0001"
+            inputMode="decimal"
+            value={makerFeePct}
+            onChange={(e) => setMakerFeePct(e.target.value)}
+            className={inputClass + " mt-1"}
+          />
+        </div>
+        <div>
+          <label htmlFor="takerFeePct" className="block text-[11px] text-ink-soft">
+            Рынок и стоп (taker), %
+          </label>
+          <input
+            id="takerFeePct"
+            type="number"
+            step="0.0001"
+            inputMode="decimal"
+            value={takerFeePct}
+            onChange={(e) => setTakerFeePct(e.target.value)}
+            className={inputClass + " mt-1"}
+          />
+        </div>
       </div>
 
       <p className="mt-2 text-[11px] text-ink-soft">
         Лимит риска — потолок суммарного риска открытых позиций в процентах от баланса,
         по нему считается бюджет на дашборде. Плечо подставляется в новую сделку по
-        умолчанию и на риск не влияет — только на маржу. Базовый риск, комиссия и плечо
-        применяются к сделкам, открытым после сохранения: у уже открытых снапшот не
-        меняется.
+        умолчанию и на риск не влияет — только на маржу. Комиссии берутся с номинала:
+        лимитная заявка — maker, рыночная и стоп — taker; риск сделки считается вместе с
+        ними. Ставки — обычный уровень биржи; со скидкой (VIP, BNB) поправь вручную.
+        Базовый риск, комиссии и плечо применяются к сделкам, открытым после сохранения:
+        у уже открытых снапшот не меняется.
       </p>
 
       {error ? <p className="mt-2 text-[12px] text-short">{error}</p> : null}

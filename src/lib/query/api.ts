@@ -1,6 +1,7 @@
 import { awaitCreation } from "@/lib/query/pending";
 import type { EntryDTO, FixDTO, FixType, TradeDTO } from "@/lib/serialize";
 import type { TagDTO } from "@/lib/tags";
+import type { OrderType } from "@/lib/trading-math";
 
 /**
  * Сделка в кеше. Теги лежат рядом, а не внутри trade: ответы на правку
@@ -40,7 +41,7 @@ export const api = {
 
   addFix: async (
     tradeId: string,
-    body: { id: string; price: number; sizePct: number; type: FixType },
+    body: { id: string; price: number; sizePct: number; type: FixType; orderType: OrderType },
   ) => {
     await awaitCreation(tradeId);
     return request<{ fix: FixDTO; trade: TradeDTO; closed: boolean }>(
@@ -82,7 +83,7 @@ export const api = {
 
   addEntry: async (
     tradeId: string,
-    body: { id: string; price: number; riskPct: number; stopLoss: number },
+    body: { id: string; price: number; riskPct: number; stopLoss: number; orderType: OrderType },
   ) => {
     await awaitCreation(tradeId);
     return request<{ trade: TradeDTO; entries: EntryDTO[] }>(`/api/trades/${tradeId}/entries`, {
