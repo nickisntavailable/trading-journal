@@ -46,7 +46,13 @@ export function MergePanel({
       entries: all,
       before: trade.riskAmount + candidate.riskAmount,
       error: validateEntriesAgainstStop(all, stopLoss, trade.direction),
-      position: positionFromEntries(all, stopLoss, trade.direction, trade.depositAtEntry),
+      position: positionFromEntries(
+        all,
+        stopLoss,
+        trade.direction,
+        trade.depositAtEntry,
+        trade.takerFeePct,
+      ),
     };
   }
 

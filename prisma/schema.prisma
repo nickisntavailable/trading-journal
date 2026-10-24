@@ -12,7 +12,10 @@ model Account {
   balance         Decimal        @db.Decimal(18, 2)
   baseRiskPct     Decimal        @db.Decimal(5, 2)
   riskLimitPct    Decimal        @default(3.00) @db.Decimal(5, 2) // потолок суммарного риска открытых позиций, % от баланса
-  feeRatePct      Decimal        @db.Decimal(6, 4) // напр. 0.0600 = 0.06%
+  // Комиссии биржи, % от номинала: лимитная заявка (maker) и рыночная (taker).
+  // По умолчанию — обычный уровень Binance USDⓈ-M.
+  makerFeePct     Decimal        @default(0.0200) @db.Decimal(6, 4)
+  takerFeePct     Decimal        @default(0.0500) @db.Decimal(6, 4)
   defaultLeverage Decimal        @default(5) @db.Decimal(5, 2) // плечо по умолчанию для новых сделок
   createdAt       DateTime       @default(now())
   updatedAt       DateTime       @updatedAt
@@ -48,7 +51,11 @@ model Trade {
   stopLoss       Decimal   @db.Decimal(18, 8)
   riskPct        Decimal   @db.Decimal(5, 2)
   depositAtEntry Decimal   @db.Decimal(18, 2) // снапшот баланса на момент открытия
-  feeRateAtEntry Decimal   @db.Decimal(6, 4) // снапшот ставки комиссии
+  // Снапшот ставок счёта на момент открытия: фиксации считаются по ним.
+  makerFeePct    Decimal   @db.Decimal(6, 4)
+  takerFeePct    Decimal   @db.Decimal(6, 4)
+  // Сколько уже уплачено комиссий на входах (сумма по входам), $.
+  entryFeeAmount Decimal   @db.Decimal(18, 4)
   riskAmount     Decimal   @db.Decimal(18, 2) // = depositAtEntry * riskPct / 100
   positionSize   Decimal   @db.Decimal(18, 2) // номинал позиции; на риск плечо не влияет
   leverage       Decimal   @default(5) @db.Decimal(5, 2) // маржа = positionSize / leverage
@@ -79,7 +86,8 @@ model Fix {
   trade     Trade    @relation(fields: [tradeId], references: [id], onDelete: Cascade)
   price     Decimal  @db.Decimal(18, 8)
   sizePct   Decimal  @db.Decimal(5, 2) // % от исходного объёма позиции
-  type      String // "manual" | "stop"
+  type      String // "manual" | "stop" | "breakeven"
+  orderType String   @default("market") // "limit" — maker, "market" — taker
   createdAt DateTime @default(now())
 
   @@index([tradeId])
@@ -262,6 +270,8 @@ model TradeEntry {
   price     Decimal  @db.Decimal(18, 8)
   size      Decimal  @db.Decimal(18, 2) // номинал этого входа, $
   riskPct   Decimal  @db.Decimal(5, 2) // каким риском добирали — для истории
+  orderType String   @default("market") // "limit" — maker, "market" — taker
+  feePct    Decimal  @db.Decimal(6, 4) // ставка, по которой взята комиссия входа
   createdAt DateTime @default(now())
 
   @@index([tradeId, createdAt])

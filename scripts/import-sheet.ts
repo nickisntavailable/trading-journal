@@ -161,7 +161,8 @@ async function main() {
 
   const sheet = readSheet(parseCSV(await response.text()));
   const account = await prisma.account.findFirstOrThrow({ orderBy: { createdAt: "asc" } });
-  const feeRate = Number(account.feeRatePct);
+  // История из таблицы — по одной ставке taker, как считалась раньше.
+  const feeRate = Number(account.takerFeePct);
 
   console.log(`Найдено в таблице: ${sheet.length} сделок`);
   console.log(`Аккаунт ${account.id}, баланс ${account.balance}, комиссия ${feeRate}%`);
@@ -203,7 +204,9 @@ async function main() {
         direction: trade.direction,
         positionSize: positionSizeValue,
         depositAtEntry: trade.depositAtEntry,
-        feeRateAtEntry: feeRate,
+        makerFeePct: feeRate,
+        takerFeePct: feeRate,
+        entryFeeAmount: (positionSizeValue * feeRate) / 100,
         riskAmount: riskAmountValue,
       },
       trade.fixes,
@@ -228,7 +231,9 @@ async function main() {
           stopLoss: trade.stopLoss,
           riskPct: trade.riskPct,
           depositAtEntry: trade.depositAtEntry,
-          feeRateAtEntry: feeRate,
+          makerFeePct: feeRate,
+          takerFeePct: feeRate,
+          entryFeeAmount: (positionSizeValue * feeRate) / 100,
           riskAmount: riskAmountValue,
           positionSize: positionSizeValue,
           entries: {
@@ -237,6 +242,7 @@ async function main() {
                 price: trade.entryPrice,
                 size: positionSizeValue,
                 riskPct: trade.riskPct,
+                feePct: feeRate,
                 createdAt: trade.date,
               },
             ],

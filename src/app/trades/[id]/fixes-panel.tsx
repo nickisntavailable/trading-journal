@@ -3,7 +3,14 @@
 import { useState } from "react";
 import { dateTime, money, price, signedMoney } from "@/lib/format";
 import type { useAddFix, useDeleteFix } from "@/lib/query/trade";
-import { FIX_TYPE_LABELS, type FixDTO, type FixType } from "@/lib/serialize";
+import { OrderTypeToggle } from "@/components/order-type-toggle";
+import {
+  DEFAULT_FIX_ORDER_TYPE,
+  FIX_TYPE_LABELS,
+  type FixDTO,
+  type FixType,
+} from "@/lib/serialize";
+import { ORDER_TYPE_LABELS, type OrderType } from "@/lib/trading-math";
 import { SwipeToDelete } from "@/components/swipe-to-delete";
 
 // Поля, кнопки типа и «Добавить» стоят в одном ряду — у всех одна высота,
@@ -57,6 +64,8 @@ export function FixesPanel({
   const [fixPrice, setFixPrice] = useState("");
   const [sizePct, setSizePct] = useState("");
   const [type, setType] = useState<FixType>("manual");
+  // Тип заявки задаёт комиссию: лимит — maker, рынок — taker.
+  const [orderType, setOrderType] = useState<OrderType>(DEFAULT_FIX_ORDER_TYPE.manual);
 
   const remainingPct = Math.max(0, 100 - closedPct);
   const lastFixId = fixes.length > 0 ? fixes[fixes.length - 1].id : null;
@@ -81,6 +90,7 @@ export function FixesPanel({
   // позиции закрываются в ноль.
   function chooseType(next: FixType) {
     setType(next);
+    setOrderType(DEFAULT_FIX_ORDER_TYPE[next]);
     setFormError(null);
     if (next === "manual") return;
     setFixPrice(String(next === "stop" ? stopLoss : entryPrice));
@@ -106,6 +116,7 @@ export function FixesPanel({
         price: priceValue,
         sizePct: pctValue,
         type,
+        orderType,
       },
       {
         // Поля чистим только при успехе: после ошибки значения нужны для «Повторить».
@@ -198,7 +209,7 @@ export function FixesPanel({
                     <span>
                       <span className="num">{money((positionSize * fix.sizePct) / 100)}</span>
                       {" · "}
-                      {FIX_TYPE_LABELS[fix.type]}
+                      {FIX_TYPE_LABELS[fix.type]} · {ORDER_TYPE_LABELS[fix.orderType]}
                     </span>
                   </div>
                 </div>
@@ -265,6 +276,13 @@ export function FixesPanel({
                 </button>
               ))}
             </div>
+          </div>
+
+          <div className="mt-3">
+            <span className="block text-[11px] text-ink-soft">
+              Заявка — {orderType === "limit" ? "комиссия maker" : "комиссия taker"}
+            </span>
+            <OrderTypeToggle value={orderType} onChange={setOrderType} className="mt-1" />
           </div>
 
           <div className="mt-3 grid grid-cols-2 gap-3 md:grid-cols-3">

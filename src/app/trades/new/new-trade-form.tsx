@@ -1,12 +1,14 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { TradeView } from "@/components/trade-view";
 import { money, pct } from "@/lib/format";
 import type { TradeWithFixes } from "@/lib/query/api";
 import { useCreateTrade } from "@/lib/query/trade";
 import type { AccountDTO, TradeDTO } from "@/lib/serialize";
 import { parseTradingViewLink } from "@/lib/tradingview-link";
+import { OrderTypeToggle } from "@/components/order-type-toggle";
+import { RiskBreakdown } from "@/components/risk-breakdown";
 import { TagPicker } from "@/components/tag-picker";
 import { TagSuggestions } from "@/components/tag-suggestions";
 import { useCreateTag, useTags } from "@/lib/query/review";
@@ -14,13 +16,18 @@ import { NOTE_MAX } from "@/lib/review-limits";
 import type { TagDTO } from "@/lib/tags";
 import { hasPrefill, type TradePrefill } from "@/lib/trade-prefill";
 import {
+  feePctFor,
   margin,
-  positionSize,
+  positionSizeWithFees,
   riskAmount,
+  stopLossBreakdown,
   stopDistancePct,
   validateStopDirection,
   type Direction,
+  type OrderType,
 } from "@/lib/trading-math";
+
+const ENTRY_ORDER_TYPE_KEY = "tj.entryOrderType";
 
 const inputClass =
   "num w-full rounded-[3px] border border-rule bg-white px-2.5 py-2 text-[14px] outline-none focus:border-ink";
@@ -47,6 +54,29 @@ export function NewTradeForm({
   const [riskPct, setRiskPct] = useState(account.baseRiskPct);
   const [leverage, setLeverage] = useState(String(account.defaultLeverage));
   const [tvLink, setTvLink] = useState("");
+  // Вход лимиткой — комиссия maker, по рынку — taker. Выбор запоминается на
+  // устройстве: обычно входят одним и тем же способом.
+  const [entryOrderType, setEntryOrderType] = useState<OrderType>("market");
+  useEffect(() => {
+    try {
+      const saved = window.localStorage.getItem(ENTRY_ORDER_TYPE_KEY);
+      // Читаем после гидрации: на сервере localStorage нет.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      if (saved === "limit" || saved === "market") setEntryOrderType(saved);
+    } catch {
+      /* без запоминания */
+    }
+  }, []);
+  function chooseEntryOrderType(value: OrderType) {
+    setEntryOrderType(value);
+    try {
+      window.localStorage.setItem(ENTRY_ORDER_TYPE_KEY, value);
+    } catch {
+      /* без запоминания */
+    }
+  }
+  const rates = { makerFeePct: account.makerFeePct, takerFeePct: account.takerFeePct };
+  const entryFeePct = feePctFor(rates, entryOrderType);
   // «Почему вход» — необязательно, можно дописать потом на странице сделки.
   const [tagIds, setTagIds] = useState<string[]>([]);
   const [note, setNote] = useState("");
@@ -70,7 +100,9 @@ export function NewTradeForm({
     if (entry <= 0 || stop <= 0 || entry === stop) return null;
 
     const risk = riskAmount(account.balance, riskPct);
-    const size = positionSize(risk, entry, stop);
+    // Размер — так, чтобы на стопе вместе с комиссиями ушёл ровно риск.
+    // Выход по стопу — рынок, taker.
+    const size = positionSizeWithFees(risk, entry, stop, entryFeePct, account.takerFeePct);
     const lev = Number(leverage);
     const marginValue = Number.isFinite(lev) && lev > 0 ? margin(size, lev) : null;
     return {
@@ -84,8 +116,18 @@ export function NewTradeForm({
           : null,
       distancePct: stopDistancePct(entry, stop),
       stopError: validateStopDirection(entry, stop, direction),
+      breakdown: stopLossBreakdown(size, entry, stop, entryFeePct, account.takerFeePct),
     };
-  }, [entryPrice, stopLoss, riskPct, direction, leverage, account.balance]);
+  }, [
+    entryPrice,
+    stopLoss,
+    riskPct,
+    direction,
+    leverage,
+    account.balance,
+    account.takerFeePct,
+    entryFeePct,
+  ]);
 
   // Пара и таймфрейм лежат в самой ссылке TradingView — читаем их сразу.
   // Пару подставляем только в пустое поле, чтобы не
@@ -132,7 +174,13 @@ export function NewTradeForm({
 
     const lev = Number(leverage) > 0 ? Number(leverage) : account.defaultLeverage;
     const riskAmountValue = riskAmount(account.balance, riskPct);
-    const positionSizeValue = positionSize(riskAmountValue, entry, stop);
+    const positionSizeValue = positionSizeWithFees(
+      riskAmountValue,
+      entry,
+      stop,
+      entryFeePct,
+      account.takerFeePct,
+    );
 
     // DTO считаем локально теми же формулами, что и сервер: карточка сразу
     // показывает те цифры, которые он потом подтвердит.
@@ -145,7 +193,9 @@ export function NewTradeForm({
       stopLoss: stop,
       riskPct,
       depositAtEntry: account.balance,
-      feeRateAtEntry: account.feeRatePct,
+      makerFeePct: account.makerFeePct,
+      takerFeePct: account.takerFeePct,
+      entryFeeAmount: (positionSizeValue * entryFeePct) / 100,
       riskAmount: riskAmountValue,
       positionSize: positionSizeValue,
       leverage: lev,
@@ -173,6 +223,8 @@ export function NewTradeForm({
           price: entry,
           size: positionSizeValue,
           riskPct,
+          orderType: entryOrderType,
+          feePct: entryFeePct,
           createdAt: trade.createdAt,
         },
       ],
@@ -190,6 +242,7 @@ export function NewTradeForm({
         stopLoss: stop,
         riskPct,
         leverage: lev,
+        entryOrderType,
         ...(trade.tvLink ? { tvLink: trade.tvLink } : {}),
         ...(trade.note ? { note: trade.note } : {}),
         ...(tagIds.length ? { tagIds } : {}),
@@ -392,6 +445,13 @@ export function NewTradeForm({
             ×
           </label>
         </div>
+        <div className="mt-3 flex items-center justify-between gap-4">
+          <span className="text-[11px] text-ink-soft">
+            Вход — {entryOrderType === "limit" ? "комиссия maker" : "комиссия taker"},{" "}
+            <span className="num">{pct(entryFeePct)}</span>
+          </span>
+          <OrderTypeToggle value={entryOrderType} onChange={chooseEntryOrderType} />
+        </div>
       </div>
 
       <div className="grid grid-cols-2 gap-4 border-b border-rule py-4 md:grid-cols-4">
@@ -403,6 +463,7 @@ export function NewTradeForm({
         />
         <Readout label="Дистанция" value={preview ? pct(preview.distancePct) : "—"} />
       </div>
+      {preview && !preview.stopError ? <RiskBreakdown {...preview.breakdown} /> : null}
 
       <div className="border-b border-rule py-4">
         <p className="text-[13px] font-medium">Почему вход</p>

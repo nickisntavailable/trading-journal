@@ -6,7 +6,7 @@ import { entryToDTO, fixToDTO, tradeToDTO } from "@/lib/serialize";
 import { positionFromEntries, validateEntriesAgainstStop } from "@/lib/entries-math";
 import { badRequest, handleError, notFound } from "@/lib/api";
 import {
-  positionSize,
+  positionSizeWithFees,
   riskAmount,
   validateStopDirection,
   type Direction,
@@ -42,7 +42,7 @@ export async function GET(
 }
 
 // Правка параметров открытой сделки: исправление опечатки во входе/стопе.
-// depositAtEntry и feeRateAtEntry остаются снапшотом момента открытия,
+// depositAtEntry и ставки комиссий остаются снапшотом момента открытия,
 // а riskAmount и positionSize пересчитываются по новым значениям.
 const patchSchema = z.object({
   pair: z.string().trim().min(1).max(32).optional(),
@@ -97,7 +97,11 @@ export async function PATCH(
 
       const direction = (existing.direction === -1 ? -1 : 1) as Direction;
       const stopLoss = body.stopLoss ?? Number(existing.stopLoss);
-      const entries = existing.entries.map((e) => ({ price: Number(e.price), size: Number(e.size) }));
+      const entries = existing.entries.map((e) => ({
+        price: Number(e.price),
+        size: Number(e.size),
+        feePct: Number(e.feePct),
+      }));
       const stopError = validateEntriesAgainstStop(entries, stopLoss, direction);
       if (stopError) return badRequest(stopError);
 
@@ -106,6 +110,7 @@ export async function PATCH(
         stopLoss,
         direction,
         Number(existing.depositAtEntry),
+        Number(existing.takerFeePct),
       );
       const trade = await prisma.trade.update({
         where: { id: existing.id },
@@ -125,7 +130,16 @@ export async function PATCH(
 
     const depositAtEntry = Number(existing.depositAtEntry);
     const riskAmountValue = riskAmount(depositAtEntry, riskPct);
-    const positionSizeValue = positionSize(riskAmountValue, entryPrice, stopLoss);
+    // Ставка входа — та, по которой он был взят (лимитка или рынок).
+    const entryFeePct = Number(existing.entries[0]?.feePct ?? existing.takerFeePct);
+    const positionSizeValue = positionSizeWithFees(
+      riskAmountValue,
+      entryPrice,
+      stopLoss,
+      entryFeePct,
+      Number(existing.takerFeePct),
+    );
+    const entryFeeAmount = (positionSizeValue * entryFeePct) / 100;
 
     // Один вход — правка как раньше (исправление опечатки): риск в процентах
     // сохраняется, размер пересчитывается. Вход обновляется в той же
@@ -141,6 +155,7 @@ export async function PATCH(
           riskPct,
           riskAmount: riskAmountValue,
           positionSize: positionSizeValue,
+          entryFeeAmount,
         },
       }),
       prisma.tradeEntry.updateMany({

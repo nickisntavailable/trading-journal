@@ -6,7 +6,9 @@ import { tradeToDTO } from "@/lib/serialize";
 import { badRequest, handleError } from "@/lib/api";
 import { NOTE_MAX } from "@/lib/review-limits";
 import {
-  positionSize,
+  feePctFor,
+  ORDER_TYPES,
+  positionSizeWithFees,
   riskAmount,
   validateStopDirection,
   type Direction,
@@ -57,6 +59,8 @@ const createSchema = z.object({
   // «Почему вход» прямо при открытии — необязательно, можно дописать потом.
   note: z.string().max(NOTE_MAX, `Заметка — не длиннее ${NOTE_MAX} символов`).optional(),
   tagIds: z.array(z.string().min(1).max(64)).max(50).optional(),
+  // Вход лимиткой — комиссия maker, по рынку — taker.
+  entryOrderType: z.enum(ORDER_TYPES).optional(),
 });
 
 export async function POST(request: Request) {
@@ -78,7 +82,12 @@ export async function POST(request: Request) {
     }
 
     const depositAtEntry = Number(account.balance);
-    const feeRateAtEntry = Number(account.feeRatePct);
+    const rates = {
+      makerFeePct: Number(account.makerFeePct),
+      takerFeePct: Number(account.takerFeePct),
+    };
+    const entryOrderType = body.entryOrderType ?? "market";
+    const entryFeePct = feePctFor(rates, entryOrderType);
 
     if (depositAtEntry <= 0) {
       return badRequest(
@@ -87,10 +96,14 @@ export async function POST(request: Request) {
     }
 
     const riskAmountValue = riskAmount(depositAtEntry, body.riskPct);
-    const positionSizeValue = positionSize(
+    // Размер — так, чтобы на стопе вместе с комиссиями входа и выхода (стоп
+    // исполняется рынком — taker) ушёл ровно риск.
+    const positionSizeValue = positionSizeWithFees(
       riskAmountValue,
       body.entryPrice,
       body.stopLoss,
+      entryFeePct,
+      rates.takerFeePct,
     );
     const leverage = body.leverage ?? Number(account.defaultLeverage);
 
@@ -115,7 +128,8 @@ export async function POST(request: Request) {
         stopLoss: body.stopLoss,
         riskPct: body.riskPct,
         depositAtEntry,
-        feeRateAtEntry,
+        ...rates,
+        entryFeeAmount: (positionSizeValue * entryFeePct) / 100,
         riskAmount: riskAmountValue,
         positionSize: positionSizeValue,
         leverage,
@@ -125,7 +139,15 @@ export async function POST(request: Request) {
         tags: { create: tagIds.map((tagId) => ({ tagId })) },
         // Первый вход. Добор потом добавит следующие.
         entries: {
-          create: [{ price: body.entryPrice, size: positionSizeValue, riskPct: body.riskPct }],
+          create: [
+            {
+              price: body.entryPrice,
+              size: positionSizeValue,
+              riskPct: body.riskPct,
+              orderType: entryOrderType,
+              feePct: entryFeePct,
+            },
+          ],
         },
       },
     });

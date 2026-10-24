@@ -10,7 +10,15 @@ import {
 import { dateTime, money, pct, price } from "@/lib/format";
 import { useAddEntry, useRemoveEntry } from "@/lib/query/entries";
 import type { EntryDTO, TradeDTO } from "@/lib/serialize";
-import { validateStopDirection } from "@/lib/trading-math";
+import { OrderTypeToggle } from "@/components/order-type-toggle";
+import { RiskBreakdown } from "@/components/risk-breakdown";
+import {
+  feePctFor,
+  ORDER_TYPE_LABELS,
+  stopLossBreakdown,
+  validateStopDirection,
+  type OrderType,
+} from "@/lib/trading-math";
 
 const inputClass =
   "num h-10 w-full rounded-[3px] border border-rule bg-white px-2.5 text-[14px] outline-none focus:border-ink";
@@ -39,6 +47,8 @@ export function EntriesPanel({
   const [riskPct, setRiskPct] = useState(String(defaultRiskPct));
   const [stopLoss, setStopLoss] = useState(String(trade.stopLoss));
   const [formError, setFormError] = useState<string | null>(null);
+  const [orderType, setOrderType] = useState<OrderType>("market");
+  const entryFeePct = feePctFor(trade, orderType);
 
   const preview = useMemo(() => {
     const p = Number(addPrice);
@@ -47,11 +57,25 @@ export function EntriesPanel({
     if (!addPrice || ![p, r, s].every((v) => Number.isFinite(v) && v > 0)) return null;
     const own = validateStopDirection(p, s, trade.direction);
     if (own) return { error: `Добор: ${own.toLowerCase()}` };
-    const next = [...entries, entryForRisk(p, s, r, trade.depositAtEntry)];
+    const add = entryForRisk(p, s, r, trade.depositAtEntry, entryFeePct, trade.takerFeePct);
+    const next = [...entries, add];
     const problem = validateEntriesAgainstStop(next, s, trade.direction);
     if (problem) return { error: problem };
-    return { position: positionFromEntries(next, s, trade.direction, trade.depositAtEntry) };
-  }, [addPrice, riskPct, stopLoss, entries, trade.direction, trade.depositAtEntry]);
+    return {
+      position: positionFromEntries(next, s, trade.direction, trade.depositAtEntry, trade.takerFeePct),
+      // Сам добор: из чего состоит его риск — цена и комиссии.
+      breakdown: stopLossBreakdown(add.size, p, s, entryFeePct, trade.takerFeePct),
+    };
+  }, [
+    addPrice,
+    riskPct,
+    stopLoss,
+    entries,
+    entryFeePct,
+    trade.direction,
+    trade.depositAtEntry,
+    trade.takerFeePct,
+  ]);
 
   if (entries.length < 2 && !canChange) return null;
 
@@ -67,6 +91,7 @@ export function EntriesPanel({
       price: Number(addPrice),
       riskPct: Number(riskPct),
       stopLoss: Number(stopLoss),
+      orderType,
     });
     setAddPrice("");
     setOpen(false);
@@ -88,7 +113,10 @@ export function EntriesPanel({
               >
                 <span className="num">
                   {price(entry.price)}
-                  <span className="text-ink-soft"> · {qtyFormat.format(quantityOf(entry))}</span>
+                  <span className="text-ink-soft">
+                    {" "}
+                    · {qtyFormat.format(quantityOf(entry))} · {ORDER_TYPE_LABELS[entry.orderType]}
+                  </span>
                 </span>
                 <span className="flex items-baseline gap-3 text-[12px] text-ink-soft">
                   <span className="num">{dateTime(entry.createdAt)}</span>
@@ -163,6 +191,14 @@ export function EntriesPanel({
               />
             </label>
           </div>
+
+          <div className="mt-2 flex items-center gap-3">
+            <span className="text-[11px] text-ink-soft">
+              Заявка — {orderType === "limit" ? "maker" : "taker"}
+            </span>
+            <OrderTypeToggle value={orderType} onChange={setOrderType} />
+          </div>
+          {preview?.breakdown ? <RiskBreakdown {...preview.breakdown} /> : null}
 
           <p className="mt-2 text-[11px] text-ink-soft">
             {preview?.position ? (

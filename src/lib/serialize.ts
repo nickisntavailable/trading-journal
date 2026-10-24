@@ -1,5 +1,5 @@
 import type { Account, BalanceEvent, Fix, Trade, TradeEntry } from "@prisma/client";
-import type { Direction } from "@/lib/trading-math";
+import { ORDER_TYPES, type Direction, type OrderType } from "@/lib/trading-math";
 
 /**
  * Prisma отдаёт Decimal-объекты, которые нельзя передать из server-компонента
@@ -14,7 +14,8 @@ export type AccountDTO = {
   balance: number;
   baseRiskPct: number;
   riskLimitPct: number;
-  feeRatePct: number;
+  makerFeePct: number;
+  takerFeePct: number;
   defaultLeverage: number;
 };
 
@@ -27,7 +28,10 @@ export type TradeDTO = {
   stopLoss: number;
   riskPct: number;
   depositAtEntry: number;
-  feeRateAtEntry: number;
+  makerFeePct: number;
+  takerFeePct: number;
+  /** Уже уплаченные комиссии входов, $. */
+  entryFeeAmount: number;
   riskAmount: number;
   positionSize: number;
   leverage: number;
@@ -68,7 +72,22 @@ export type FixDTO = {
   price: number;
   sizePct: number;
   type: FixType;
+  orderType: OrderType;
   createdAt: string;
+};
+
+export function toOrderType(value: string): OrderType {
+  return (ORDER_TYPES as readonly string[]).includes(value) ? (value as OrderType) : "market";
+}
+
+/**
+ * Тип заявки фиксации по умолчанию, как обычно на бирже: ручная фиксация —
+ * тейк лимиткой, стоп и б/у — стоп-маркет. В форме переключается.
+ */
+export const DEFAULT_FIX_ORDER_TYPE: Record<FixType, OrderType> = {
+  manual: "limit",
+  stop: "market",
+  breakeven: "market",
 };
 
 export type BalanceEventDTO = {
@@ -86,7 +105,8 @@ export function accountToDTO(a: Account): AccountDTO {
     balance: n(a.balance),
     baseRiskPct: n(a.baseRiskPct),
     riskLimitPct: n(a.riskLimitPct),
-    feeRatePct: n(a.feeRatePct),
+    makerFeePct: n(a.makerFeePct),
+    takerFeePct: n(a.takerFeePct),
     defaultLeverage: n(a.defaultLeverage),
   };
 }
@@ -101,7 +121,9 @@ export function tradeToDTO(t: Trade): TradeDTO {
     stopLoss: n(t.stopLoss),
     riskPct: n(t.riskPct),
     depositAtEntry: n(t.depositAtEntry),
-    feeRateAtEntry: n(t.feeRateAtEntry),
+    makerFeePct: n(t.makerFeePct),
+    takerFeePct: n(t.takerFeePct),
+    entryFeeAmount: n(t.entryFeeAmount),
     riskAmount: n(t.riskAmount),
     positionSize: n(t.positionSize),
     leverage: n(t.leverage),
@@ -126,6 +148,7 @@ export function fixToDTO(f: Fix): FixDTO {
     price: n(f.price),
     sizePct: n(f.sizePct),
     type: toFixType(f.type),
+    orderType: toOrderType(f.orderType),
     createdAt: f.createdAt.toISOString(),
   };
 }
@@ -147,6 +170,9 @@ export type EntryDTO = {
   /** Номинал входа, $. Количество монет = size / price. */
   size: number;
   riskPct: number;
+  orderType: OrderType;
+  /** Ставка комиссии этого входа, %. */
+  feePct: number;
   createdAt: string;
 };
 
@@ -156,6 +182,8 @@ export function entryToDTO(e: TradeEntry): EntryDTO {
     price: n(e.price),
     size: n(e.size),
     riskPct: n(e.riskPct),
+    orderType: toOrderType(e.orderType),
+    feePct: n(e.feePct),
     createdAt: e.createdAt.toISOString(),
   };
 }

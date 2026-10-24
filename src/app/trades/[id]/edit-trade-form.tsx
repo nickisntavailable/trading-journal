@@ -7,7 +7,7 @@ import { positionFromEntries, validateEntriesAgainstStop } from "@/lib/entries-m
 import type { EntryDTO, TradeDTO } from "@/lib/serialize";
 import {
   margin,
-  positionSize,
+  positionSizeWithFees,
   riskAmount,
   validateStopDirection,
   type Direction,
@@ -54,7 +54,13 @@ export function EditTradeForm({
 
     if (multi) {
       if (!Number.isFinite(stop) || stop <= 0) return null;
-      const position = positionFromEntries(entries, stop, trade.direction, trade.depositAtEntry);
+      const position = positionFromEntries(
+        entries,
+        stop,
+        trade.direction,
+        trade.depositAtEntry,
+        trade.takerFeePct,
+      );
       return {
         risk: position.riskAmount,
         size: position.positionSize,
@@ -67,14 +73,27 @@ export function EditTradeForm({
     if (entry <= 0 || stop <= 0 || entry === stop || risk <= 0) return null;
 
     const riskAmountValue = riskAmount(trade.depositAtEntry, risk);
-    const size = positionSize(riskAmountValue, entry, stop);
+    // Ставка входа — та, по которой он был взят (лимитка или рынок).
+    const entryFeePct = entries[0]?.feePct ?? trade.takerFeePct;
+    const size = positionSizeWithFees(riskAmountValue, entry, stop, entryFeePct, trade.takerFeePct);
     return {
       risk: riskAmountValue,
       size,
       margin: marginOf(size),
       stopError: validateStopDirection(entry, stop, direction),
     };
-  }, [entryPrice, stopLoss, riskPct, leverage, direction, multi, entries, trade.direction, trade.depositAtEntry]);
+  }, [
+    entryPrice,
+    stopLoss,
+    riskPct,
+    leverage,
+    direction,
+    multi,
+    entries,
+    trade.direction,
+    trade.depositAtEntry,
+    trade.takerFeePct,
+  ]);
 
   function onSubmit(event: React.FormEvent) {
     event.preventDefault();
@@ -252,7 +271,8 @@ export function EditTradeForm({
 
       <p className="mt-3 text-[11px] text-ink-soft">
         Депозит на момент открытия <span className="num">{money(trade.depositAtEntry)}</span> и
-        ставка комиссии <span className="num">{pct(trade.feeRateAtEntry)}</span> остаются
+        комиссии <span className="num">{pct(trade.makerFeePct)}</span> /{" "}
+        <span className="num">{pct(trade.takerFeePct)}</span> (лимит / рынок) остаются
         прежними. Новый риск{" "}
         <span className="num">{preview ? money(preview.risk) : "—"}</span>, позиция{" "}
         <span className="num">{preview ? money(preview.size) : "—"}</span>, маржа{" "}

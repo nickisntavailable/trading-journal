@@ -6,6 +6,7 @@ import { api, type TradeWithFixes } from "@/lib/query/api";
 import { queryKeys } from "@/lib/query/keys";
 import { clearCreation, trackCreation } from "@/lib/query/pending";
 import type { FixDTO, FixType, TradeDTO } from "@/lib/serialize";
+import type { OrderType } from "@/lib/trading-math";
 import { applyFix, reconcileFix, removeFix, validateNewFix } from "@/lib/trade-local";
 
 /**
@@ -29,6 +30,7 @@ export type NewFixInput = {
   price: number;
   sizePct: number;
   type: FixType;
+  orderType: OrderType;
 };
 
 /**
@@ -59,6 +61,7 @@ export function useAddFix(tradeId: string) {
         price: input.price,
         sizePct: input.sizePct,
         type: input.type,
+        orderType: input.orderType,
         createdAt: new Date().toISOString(),
       };
       queryClient.setQueryData<TradeWithFixes>(key, applyFix(previous, optimistic));
