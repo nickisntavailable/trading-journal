@@ -17,6 +17,7 @@ import { TagSuggestions } from "@/components/tag-suggestions";
 import { useCreateTag, useTags } from "@/lib/query/review";
 import { NOTE_MAX } from "@/lib/review-limits";
 import type { TagDTO } from "@/lib/tags";
+import { hasPrefill, type TradePrefill } from "@/lib/trade-prefill";
 import {
   margin,
   positionSize,
@@ -33,21 +34,24 @@ export function NewTradeForm({
   account,
   canParseScreenshots,
   initialTags,
+  prefill,
 }: {
   account: AccountDTO;
   /** Доступ к разбору скриншотов выдаёт админ; без него уровни вводятся руками. */
   canParseScreenshots: boolean;
   initialTags: TagDTO[];
+  /** Поля из адреса — например, из расширения для TradingView. */
+  prefill: TradePrefill;
 }) {
   const createTrade = useCreateTrade();
   // Открытая сделка показывается на месте формы: перехода на другую страницу
   // и ожидания SSR нет, URL подменяется, чтобы обновление страницы работало.
   const [opened, setOpened] = useState<TradeWithFixes | null>(null);
 
-  const [pair, setPair] = useState("");
-  const [direction, setDirection] = useState<Direction>(1);
-  const [entryPrice, setEntryPrice] = useState("");
-  const [stopLoss, setStopLoss] = useState("");
+  const [pair, setPair] = useState(prefill.pair ?? "");
+  const [direction, setDirection] = useState<Direction>(prefill.direction ?? 1);
+  const [entryPrice, setEntryPrice] = useState(prefill.entryPrice ?? "");
+  const [stopLoss, setStopLoss] = useState(prefill.stopLoss ?? "");
   const [riskPct, setRiskPct] = useState(account.baseRiskPct);
   const [leverage, setLeverage] = useState(String(account.defaultLeverage));
   const [tvLink, setTvLink] = useState("");
@@ -299,6 +303,12 @@ export function NewTradeForm({
   return (
     <form onSubmit={onSubmit} className="mt-4 max-w-[560px]">
       <h1 className="mb-4 text-[13px] font-medium">Новая сделка</h1>
+      {hasPrefill(prefill) ? (
+        <p className="mb-4 border-l-2 border-ink pl-3 text-[12px] text-ink-soft">
+          Заполнено {prefill.source === "tv" ? "из TradingView" : "по ссылке"} — проверь цифры и
+          открой сделку.
+        </p>
+      ) : null}
       {canParseScreenshots ? (
         <>
           <ScreenshotBlock onParsed={applyParsed} onFailure={() => setShowLink(true)} />
