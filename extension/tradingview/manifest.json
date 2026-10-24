@@ -1,0 +1,14 @@
+{
+  "manifest_version": 3,
+  "name": "Trading Journal — TradingView",
+  "version": "0.1.0",
+  "description": "Пункт «Открыть сделку в журнале» в контекстном меню инструмента «Длинная/Короткая позиция».",
+  "content_scripts": [
+    {
+      "matches": ["https://*.tradingview.com/chart/*"],
+      "js": ["levels.js", "content.js"],
+      "run_at": "document_idle",
+      "world": "MAIN"
+    }
+  ]
+}
