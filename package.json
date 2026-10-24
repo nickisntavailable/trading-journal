@@ -15,7 +15,6 @@
     "test": "node --import tsx --test \"src/**/*.test.ts\" \"extension/**/*.test.cjs\""
   },
   "dependencies": {
-    "@anthropic-ai/sdk": "^0.124.0",
     "@prisma/client": "^6.19.3",
     "@tanstack/react-query": "^5.103.1",
     "better-auth": "^1.7.6",

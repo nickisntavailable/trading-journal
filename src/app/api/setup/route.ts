@@ -65,7 +65,6 @@ export async function POST(request: Request) {
         password: body.password,
         name: ownerEmail.split("@")[0],
         role: "admin",
-        data: { canParseScreenshots: true },
       },
     });
     await attachOwnerAccount(user.id);

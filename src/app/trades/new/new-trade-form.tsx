@@ -1,11 +1,6 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import {
-  ScreenshotBlock,
-  ScreenshotCandidates,
-  type ParsedScreenshot,
-} from "@/app/trades/new/screenshot-block";
 import { TradeView } from "@/components/trade-view";
 import { money, pct } from "@/lib/format";
 import type { TradeWithFixes } from "@/lib/query/api";
@@ -32,13 +27,10 @@ const inputClass =
 
 export function NewTradeForm({
   account,
-  canParseScreenshots,
   initialTags,
   prefill,
 }: {
   account: AccountDTO;
-  /** Доступ к разбору скриншотов выдаёт админ; без него уровни вводятся руками. */
-  canParseScreenshots: boolean;
   initialTags: TagDTO[];
   /** Поля из адреса — например, из расширения для TradingView. */
   prefill: TradePrefill;
@@ -60,12 +52,9 @@ export function NewTradeForm({
   const [note, setNote] = useState("");
   const { data: tags = [] } = useTags(initialTags);
   const createTag = useCreateTag();
-  const [parsed, setParsed] = useState<ParsedScreenshot | null>(null);
   const [error, setError] = useState<string | null>(null);
   // Поля, на которые ругнулись при отправке: подсвечиваются, пока не заполнены.
   const [missing, setMissing] = useState<Set<string>>(new Set());
-  const [parsingSnapshot, setParsingSnapshot] = useState(false);
-  const [snapshotError, setSnapshotError] = useState<string | null>(null);
   // Основной путь — картинка. Поле ссылки открывается само, когда со скриншотом
   // не вышло, либо вручную: ссылка сохраняется со сделкой и открывается с её
   // страницы, так что она нужна и когда разбор прошёл успешно.
@@ -98,65 +87,15 @@ export function NewTradeForm({
     };
   }, [entryPrice, stopLoss, riskPct, direction, leverage, account.balance]);
 
-  function applyParsed(result: ParsedScreenshot) {
-    if (result.pair) setPair(result.pair.toUpperCase());
-    setParsed(result);
-
-    // Разбор формально успешен, но пустой — предлагаем запасной путь.
-    const empty =
-      result.pair === null && result.currentPrice === null && result.levels.length === 0;
-    if (empty) setShowLink(true);
-
-    // Подставляем только то, что уже помечено на самом графике: цвет плашки на
-    // ценовой шкале и зоны инструмента позиции модель читает, а не выводит.
-    // Всё подставленное видно в списке кандидатов и правится одним кликом.
-    if (result.direction) setDirection(result.direction === "short" ? -1 : 1);
-
-    // Плашка текущей цены на шкале подсвечена так же, как плашка входа, и модель
-    // иногда помечает ролью "entry" обе. Текущую цену как вход не берём: если
-    // она действительно нужна, пользователь подставит её кнопкой.
-    const entryLevels = result.levels.filter((level) => level.role === "entry");
-    const markedEntry =
-      entryLevels.find((level) => level.price !== result.currentPrice) ?? null;
-    const markedStop = result.levels.find((level) => level.role === "stop");
-
-    if (markedEntry) setEntryPrice(String(markedEntry.price));
-    if (markedStop) setStopLoss(String(markedStop.price));
-  }
-
-  // Пара и таймфрейм лежат в самой ссылке TradingView — читаем их сразу,
-  // без запроса к модели. Пару подставляем только в пустое поле, чтобы не
+  // Пара и таймфрейм лежат в самой ссылке TradingView — читаем их сразу.
+  // Пару подставляем только в пустое поле, чтобы не
   // затирать то, что пользователь уже ввёл руками.
   const linkInfo = useMemo(() => parseTradingViewLink(tvLink), [tvLink]);
 
   function onTvLinkChange(value: string) {
     setTvLink(value);
-    setSnapshotError(null);
     const info = parseTradingViewLink(value);
     if (info?.pair && pair.trim().length === 0) setPair(info.pair);
-  }
-
-  /** Снимок разбирается тем же путём, что и загруженный файл. */
-  async function parseSnapshot() {
-    setParsingSnapshot(true);
-    setSnapshotError(null);
-    try {
-      const response = await fetch("/api/parse-screenshot", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ url: tvLink.trim() }),
-      });
-      const data = await response.json();
-      if (!response.ok) {
-        setSnapshotError(data.error ?? "Не удалось разобрать снимок");
-        return;
-      }
-      applyParsed(data as ParsedScreenshot);
-    } catch {
-      setSnapshotError("Не удалось разобрать снимок");
-    } finally {
-      setParsingSnapshot(false);
-    }
   }
 
   function onSubmit(event: React.FormEvent) {
@@ -309,19 +248,6 @@ export function NewTradeForm({
           открой сделку.
         </p>
       ) : null}
-      {canParseScreenshots ? (
-        <>
-          <ScreenshotBlock onParsed={applyParsed} onFailure={() => setShowLink(true)} />
-          <ScreenshotCandidates
-            parsed={parsed}
-            entryPrice={entryPrice}
-            stopLoss={stopLoss}
-            onPickEntry={(v) => setEntryPrice(String(v))}
-            onPickStop={(v) => setStopLoss(String(v))}
-          />
-        </>
-      ) : null}
-
       {showLink ? (
         <div className="border-b border-rule py-4">
           <label htmlFor="tvLink" className="block text-[11px] text-ink-soft">
@@ -342,9 +268,6 @@ export function NewTradeForm({
             hasLink={tvLink.trim().length > 0}
             currentPair={pair}
             onUsePair={setPair}
-            onParseSnapshot={canParseScreenshots ? parseSnapshot : undefined}
-            parsingSnapshot={parsingSnapshot}
-            snapshotError={snapshotError}
           />
         </div>
       ) : (
@@ -527,42 +450,24 @@ export function NewTradeForm({
 }
 
 /**
- * Что удалось вычитать из ссылки, и что с ней можно сделать дальше.
- * Ссылка на снимок (/x/…) разбирается целиком, ссылка на живой график даёт
- * только тикер и таймфрейм — об этом здесь и написано.
+ * Что удалось вычитать из ссылки на TradingView. Ссылка сохраняется со
+ * сделкой; из адреса живого графика берём пару и таймфрейм.
  */
 function LinkReadout({
   info,
   hasLink,
   currentPair,
   onUsePair,
-  onParseSnapshot,
-  parsingSnapshot,
-  snapshotError,
 }: {
   info: ReturnType<typeof parseTradingViewLink>;
   hasLink: boolean;
   currentPair: string;
   onUsePair: (value: string) => void;
-  /** Нет — разбор не подключён: ссылка просто сохраняется со сделкой. */
-  onParseSnapshot?: () => void;
-  parsingSnapshot: boolean;
-  snapshotError: string | null;
 }) {
   if (!hasLink) {
-    if (!onParseSnapshot) {
-      return (
-        <p className="mt-1.5 text-[11px] text-ink-soft">
-          Ссылка сохранится вместе со сделкой — по ней потом удобно открыть график.
-        </p>
-      );
-    }
     return (
       <p className="mt-1.5 text-[11px] text-ink-soft">
-        Запасной путь, если со скриншотом не вышло: снимок графика
-        (<span className="num">tradingview.com/x/…</span>, в TradingView Alt+S) разбирается
-        так же, как загруженная картинка. Ссылка на сам график даст только тикер и
-        таймфрейм, но сохранится вместе со сделкой.
+        Ссылка сохранится вместе со сделкой — по ней потом удобно открыть график.
       </p>
     );
   }
@@ -576,30 +481,9 @@ function LinkReadout({
     );
   }
 
-  // Снимок: у него нет символа в адресе, зато есть картинка со всей разметкой.
+  // У снимка (/x/…) символа в адресе нет — просто сохраняем.
   if (info.snapshotId) {
-    if (!onParseSnapshot) {
-      return (
-        <p className="mt-1.5 text-[11px] text-ink-soft">Снимок сохранится вместе со сделкой.</p>
-      );
-    }
-    return (
-      <div className="mt-1.5">
-        <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-          <button
-            type="button"
-            onClick={onParseSnapshot}
-            disabled={parsingSnapshot}
-            className="rounded-[3px] border border-rule bg-white px-2.5 py-1 text-[11px] hover:border-ink disabled:opacity-40"
-          >
-            {parsingSnapshot ? "Разбираю снимок…" : "Разобрать снимок"}
-          </button>
-          <span className="text-[11px] text-ink-soft">
-            {snapshotError ?? "Заберём картинку снимка и прочитаем её как скриншот"}
-          </span>
-        </div>
-      </div>
-    );
+    return <p className="mt-1.5 text-[11px] text-ink-soft">Снимок сохранится вместе со сделкой.</p>;
   }
 
   const mismatch = currentPair.trim().length > 0 && currentPair.trim() !== info.pair;
@@ -627,15 +511,6 @@ function LinkReadout({
       ) : (
         <p className="text-[11px] text-ink-soft">В адресе нет символа — заполни пару вручную.</p>
       )}
-
-      {onParseSnapshot ? (
-        <p className="mt-1 text-[11px] text-ink-soft">
-          Это ссылка на живой график: уровни из неё не вытащить, картинки по такому адресу
-          не существует. Чтобы разобрать разметку, сделай снимок — в TradingView Alt+S или
-          иконка фотоаппарата → «Скопировать ссылку на изображение графика», получится
-          адрес вида <span className="num">tradingview.com/x/…</span>.
-        </p>
-      ) : null}
     </div>
   );
 }
