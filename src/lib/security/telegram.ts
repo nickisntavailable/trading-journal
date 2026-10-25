@@ -1,34 +1,32 @@
+import { sendMessage } from "@/lib/telegram/bot";
+import { adminTelegramIds } from "@/lib/telegram/link";
+
 /**
- * Сигналы безопасности в Telegram.
+ * Сигналы безопасности в Telegram — через бота журнала, тем админам, у
+ * которых привязан Telegram (Настройки → Telegram). TELEGRAM_CHAT_ID, если
+ * задан, перекрывает это — например, чтобы слать в отдельный чат.
  *
- * Бот создаётся через @BotFather, токен и id чата кладутся в TELEGRAM_BOT_TOKEN
- * и TELEGRAM_CHAT_ID. Если переменных нет — сигнал пишется в лог и молча
- * пропускается: отсутствие бота не должно ломать вход.
+ * Нет бота или получателей — сигнал пишется в лог и молча пропускается:
+ * отсутствие бота не должно ломать вход.
  */
-const TIMEOUT_MS = 5_000;
-
 export async function sendSecurityAlert(lines: string[]): Promise<void> {
-  const token = process.env.TELEGRAM_BOT_TOKEN;
-  const chatId = process.env.TELEGRAM_CHAT_ID;
   const text = lines.join("\n");
-
-  if (!token || !chatId) {
-    console.warn(`security alert (Telegram не настроен):\n${text}`);
-    return;
-  }
-
   try {
-    const response = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ chat_id: chatId, text, parse_mode: "HTML" }),
-      signal: AbortSignal.timeout(TIMEOUT_MS),
-    });
-    if (!response.ok) {
-      console.error("security alert: Telegram ответил", response.status, await response.text());
+    const explicit = process.env.TELEGRAM_CHAT_ID;
+    const recipients = explicit ? [explicit] : await adminTelegramIds();
+    if (!process.env.TELEGRAM_BOT_TOKEN || recipients.length === 0) {
+      console.warn(`security alert (Telegram не настроен):\n${text}`);
+      return;
     }
+    await Promise.all(
+      recipients.map((chatId) =>
+        sendMessage(chatId, text).catch((error) =>
+          console.error("security alert: не удалось отправить в Telegram", error),
+        ),
+      ),
+    );
   } catch (error) {
-    console.error("security alert: не удалось отправить в Telegram", error);
+    console.error("security alert: не удалось отправить", error);
   }
 }
 

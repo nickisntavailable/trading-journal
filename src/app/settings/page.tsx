@@ -11,6 +11,8 @@ import { prisma } from "@/lib/prisma";
 import { accountToDTO } from "@/lib/serialize";
 import { listTags } from "@/lib/tags";
 import { TagsManager } from "@/app/settings/tags-manager";
+import { TelegramLink } from "@/app/settings/telegram-link";
+import { botConfigured } from "@/lib/telegram/bot";
 import { describeUserAgent } from "@/lib/security/request-info";
 import { listUserSessions } from "@/lib/session";
 
@@ -33,6 +35,10 @@ export default async function SettingsPage() {
   });
   const { user, sessions, currentSessionId } = await listUserSessions();
   const tags = await listTags(account.id);
+  const telegram = await prisma.telegramAccount.findUnique({
+    where: { userId: user.id },
+    select: { username: true, firstName: true },
+  });
 
   return (
     <AppShell>
@@ -97,6 +103,11 @@ export default async function SettingsPage() {
           </div>
         </section>
       ) : null}
+
+      <section className="border-b border-rule py-5">
+        <h2 className="text-[12px] text-ink-soft">Telegram</h2>
+        <TelegramLink linked={telegram} configured={botConfigured()} />
+      </section>
 
       <section className="py-5">
         <div className="flex items-baseline justify-between gap-3">

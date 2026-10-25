@@ -123,22 +123,24 @@ model SecurityAlert {
 }
 
 model User {
-  id             String          @id
-  name           String
-  email          String
-  emailVerified  Boolean         @default(false)
-  image          String?
-  createdAt      DateTime        @default(now())
-  updatedAt      DateTime        @updatedAt
-  role           String?
-  banned         Boolean?        @default(false)
-  banReason      String?
-  banExpires     DateTime?
-  sessions       Session[]
-  authaccounts   AuthAccount[]
-  tradingAccount Account?
-  invitesCreated Invite[]
-  passwordResets PasswordReset[]
+  id                 String              @id
+  name               String
+  email              String
+  emailVerified      Boolean             @default(false)
+  image              String?
+  createdAt          DateTime            @default(now())
+  updatedAt          DateTime            @updatedAt
+  role               String?
+  banned             Boolean?            @default(false)
+  banReason          String?
+  banExpires         DateTime?
+  sessions           Session[]
+  authaccounts       AuthAccount[]
+  tradingAccount     Account?
+  invitesCreated     Invite[]
+  passwordResets     PasswordReset[]
+  telegramAccount    TelegramAccount?
+  telegramLinkTokens TelegramLinkToken[]
 
   @@unique([email])
   @@map("user")
@@ -275,4 +277,30 @@ model TradeEntry {
   createdAt DateTime @default(now())
 
   @@index([tradeId, createdAt])
+}
+
+// Привязка Telegram к учётке: второй способ входа (Mini App, бот). Сделки и
+// пароль остаются при учётке — это просто ещё одна «дверь» в неё.
+model TelegramAccount {
+  id         String   @id @default(cuid())
+  userId     String   @unique
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  telegramId BigInt   @unique // id пользователя Telegram; в личном чате с ботом = id чата
+  username   String?
+  firstName  String?
+  createdAt  DateTime @default(now())
+}
+
+// Одноразовая ссылка t.me/<бот>?start=link_<токен> для привязки из настроек.
+// Хранится SHA-256 токена; живёт 10 минут.
+model TelegramLinkToken {
+  id        String    @id @default(cuid())
+  userId    String
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tokenHash String    @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  @@index([userId])
 }

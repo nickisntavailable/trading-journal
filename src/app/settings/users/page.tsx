@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { AppShell } from "@/components/app-shell";
+import { BotSetup } from "@/app/settings/users/bot-setup";
 import { InviteForm } from "@/app/settings/users/invite-form";
 import { RevokeInviteButton } from "@/app/settings/users/revoke-invite-button";
 import { UserControls } from "@/app/settings/users/user-controls";
@@ -38,6 +39,11 @@ export default async function UsersPage() {
         <span className="text-ink-soft"> / </span>
         Пользователи
       </h1>
+
+      <section className="border-b border-rule py-5">
+        <h2 className="text-[12px] text-ink-soft">Бот Telegram</h2>
+        <BotSetup />
+      </section>
 
       <section className="border-b border-rule py-5">
         <h2 className="text-[12px] text-ink-soft">Пригласить</h2>
