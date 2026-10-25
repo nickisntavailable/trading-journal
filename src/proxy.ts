@@ -42,8 +42,9 @@ export const config = {
      *   /invite, /reset и их API
      * - /api/auth/* — эндпоинтов Better Auth, они проверяют сессию сами
      * - /api/telegram/webhook — сообщений бота, там проверяется секрет Telegram
+     * - /tg — входа из Telegram Mini App: сессии там ещё нет, её и создают
      * - статики Next и favicon
      */
-    "/((?!login|setup|invite|reset|api/login|api/setup|api/invite|api/reset|api/auth|api/telegram/webhook|_next/static|_next/image|favicon.ico).*)",
+    "/((?!login|setup|invite|reset|tg|api/login|api/setup|api/invite|api/reset|api/auth|api/telegram/webhook|_next/static|_next/image|favicon.ico).*)",
   ],
 };

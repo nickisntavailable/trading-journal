@@ -1,10 +1,11 @@
-import { NextResponse } from "next/server";
+import { after, NextResponse } from "next/server";
 import { secretsMatch } from "@/lib/security/compare";
 import { sendMessage, siteUrl } from "@/lib/telegram/bot";
 import { parseStart } from "@/lib/telegram/commands";
 import { consumeLinkToken, type TelegramUser } from "@/lib/telegram/link";
 import { prisma } from "@/lib/prisma";
 import { escapeHtml } from "@/lib/security/telegram";
+import { ensureWebhook, miniAppUrl } from "@/lib/telegram/webhook-setup";
 
 type Update = {
   message?: {
@@ -29,6 +30,9 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "forbidden" }, { status: 403 });
   }
 
+  // Кнопка «Журнал» в меню и webhook — на месте ли (раз на запуск функции).
+  after(() => ensureWebhook());
+
   try {
     const update = (await request.json()) as Update;
     await handleMessage(update, new URL(request.url).origin);
@@ -46,6 +50,11 @@ async function handleMessage(update: Update, origin: string) {
   const start = parseStart(message.text);
   if (!start) return;
   const chatId = message.chat.id;
+  const appUrl = miniAppUrl() ?? new URL("/tg", origin).toString();
+  // Кнопка под сообщением, открывающая журнал внутри Telegram.
+  const openButton = {
+    reply_markup: { inline_keyboard: [[{ text: "Открыть журнал", web_app: { url: appUrl } }]] },
+  };
 
   if (start.kind === "link") {
     const result = await consumeLinkToken(start.token, message.from);
@@ -55,7 +64,7 @@ async function handleMessage(update: Update, origin: string) {
         : result.status === "taken"
           ? "Этот Telegram уже привязан к другой учётке журнала."
           : "Ссылка недействительна или устарела — создай новую в настройках журнала.";
-    await sendMessage(chatId, text);
+    await sendMessage(chatId, text, result.status === "linked" ? openButton : {});
     return;
   }
 
@@ -63,11 +72,12 @@ async function handleMessage(update: Update, origin: string) {
     where: { telegramId: BigInt(message.from.id) },
     select: { id: true },
   });
-  const url = siteUrl(origin);
+  if (linked) {
+    await sendMessage(chatId, "Журнал — кнопкой ниже или «Журнал» в меню бота.", openButton);
+    return;
+  }
   await sendMessage(
     chatId,
-    linked
-      ? `Ты уже в журнале: ${escapeHtml(url)}`
-      : "Это бот трейд-журнала. Регистрация через бота скоро появится — пока вход по приглашению.",
+    `Это бот трейд-журнала ${escapeHtml(siteUrl(origin))}. Регистрация через бота скоро появится — пока вход по приглашению.`,
   );
 }

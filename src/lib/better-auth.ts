@@ -3,6 +3,7 @@ import { prismaAdapter } from "better-auth/adapters/prisma";
 import { nextCookies } from "better-auth/next-js";
 import { admin } from "better-auth/plugins";
 import { prisma } from "@/lib/prisma";
+import { telegramMiniApp } from "@/lib/telegram/auth-plugin";
 
 /**
  * Адрес приложения. На проде и локально берётся из BETTER_AUTH_URL. У превью
@@ -74,6 +75,8 @@ export const auth = betterAuth({
   plugins: [
     // Роли (admin / user), создание пользователей админом, бан, отзыв сессий.
     admin(),
+    // Вход из Telegram Mini App по подписанным данным Telegram.
+    telegramMiniApp(),
     // Позволяет серверным вызовам auth.api ставить cookie сессии через
     // next/headers. Должен быть последним.
     nextCookies(),

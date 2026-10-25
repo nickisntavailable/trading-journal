@@ -6,17 +6,30 @@ export type WebhookInfo = {
   last_error_message?: string;
 };
 
+type MenuButton = { type: string; text?: string; web_app?: { url: string } };
+
 /**
- * Куда Telegram должен слать сообщения бота. Берём постоянный адрес прода из
- * BETTER_AUTH_URL, а не адрес текущего запроса: у каждого деплоя Vercel есть
- * и свой адрес, и webhook на него замолчал бы после следующего деплоя.
+ * Постоянный адрес прода из BETTER_AUTH_URL, а не адрес текущего запроса: у
+ * каждого деплоя Vercel есть и свой адрес, и бот, привязанный к нему,
+ * замолчал бы после следующего деплоя.
  */
+function siteBase(): string | null {
+  return process.env.BETTER_AUTH_URL ?? null;
+}
+
+/** Куда Telegram шлёт сообщения бота. */
 export function webhookUrl(): string | null {
-  const base = process.env.BETTER_AUTH_URL;
+  const base = siteBase();
   return base ? new URL("/api/telegram/webhook", base).toString() : null;
 }
 
-/** Зарегистрировать webhook и команды бота. */
+/** Страница Mini App — её открывает кнопка «Журнал» в боте. */
+export function miniAppUrl(): string | null {
+  const base = siteBase();
+  return base ? new URL("/tg", base).toString() : null;
+}
+
+/** Зарегистрировать webhook, команды и кнопку «Журнал» в меню бота. */
 export async function connectWebhook(url: string): Promise<WebhookInfo | null> {
   await callBot("setWebhook", {
     url,
@@ -24,23 +37,32 @@ export async function connectWebhook(url: string): Promise<WebhookInfo | null> {
     allowed_updates: ["message", "callback_query"],
   });
   await callBot("setMyCommands", { commands: [{ command: "start", description: "Начать" }] });
+  const appUrl = miniAppUrl() ?? new URL("/tg", url).toString();
+  await callBot("setChatMenuButton", {
+    menu_button: { type: "web_app", text: "Журнал", web_app: { url: appUrl } },
+  });
   return callBot<WebhookInfo>("getWebhookInfo");
 }
 
 let ensured = false;
 
 /**
- * Подключить бота, если он ещё не подключён к этому сайту. Вызывается перед
- * привязкой Telegram, чтобы не нужно было помнить про отдельную кнопку.
- * Проверка — раз на запуск функции; ошибки не мешают привязке, только в лог.
+ * Подключить бота, если он ещё не подключён к сайту: webhook и кнопка
+ * «Журнал». Вызывается перед привязкой Telegram и на входящих сообщениях,
+ * чтобы не нужно было помнить про отдельную кнопку. Проверка — раз на запуск
+ * функции; ошибки не мешают основному делу, только в лог.
  */
 export async function ensureWebhook(): Promise<void> {
   if (ensured || !botConfigured() || !process.env.TELEGRAM_WEBHOOK_SECRET) return;
   const url = webhookUrl();
-  if (!url) return;
+  const appUrl = miniAppUrl();
+  if (!url || !appUrl) return;
   try {
-    const info = await callBot<WebhookInfo>("getWebhookInfo");
-    if (info?.url !== url) await connectWebhook(url);
+    const [info, menu] = await Promise.all([
+      callBot<WebhookInfo>("getWebhookInfo"),
+      callBot<MenuButton>("getChatMenuButton"),
+    ]);
+    if (info?.url !== url || menu?.web_app?.url !== appUrl) await connectWebhook(url);
     ensured = true;
   } catch (error) {
     console.error("[telegram] не удалось подключить бота", error);
