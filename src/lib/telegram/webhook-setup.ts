@@ -23,10 +23,13 @@ export function webhookUrl(): string | null {
   return base ? new URL("/api/telegram/webhook", base).toString() : null;
 }
 
-/** Страница Mini App — её открывает кнопка «Журнал» в боте. */
+/**
+ * Куда ведёт кнопка «Журнал» в боте — сразу в журнал, с меткой tgapp: с живой
+ * сессией он откроется мгновенно, без промежуточной страницы входа.
+ */
 export function miniAppUrl(): string | null {
   const base = siteBase();
-  return base ? new URL("/tg", base).toString() : null;
+  return base ? new URL("/?tgapp=1", base).toString() : null;
 }
 
 /** Зарегистрировать webhook, команды и кнопку «Журнал» в меню бота. */
@@ -37,7 +40,7 @@ export async function connectWebhook(url: string): Promise<WebhookInfo | null> {
     allowed_updates: ["message", "callback_query"],
   });
   await callBot("setMyCommands", { commands: [{ command: "start", description: "Начать" }] });
-  const appUrl = miniAppUrl() ?? new URL("/tg", url).toString();
+  const appUrl = miniAppUrl() ?? new URL("/?tgapp=1", url).toString();
   await callBot("setChatMenuButton", {
     menu_button: { type: "web_app", text: "Журнал", web_app: { url: appUrl } },
   });

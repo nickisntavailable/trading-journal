@@ -50,7 +50,7 @@ async function handleMessage(update: Update, origin: string) {
   const start = parseStart(message.text);
   if (!start) return;
   const chatId = message.chat.id;
-  const appUrl = miniAppUrl() ?? new URL("/tg", origin).toString();
+  const appUrl = miniAppUrl() ?? new URL("/?tgapp=1", origin).toString();
   // Кнопка под сообщением, открывающая журнал внутри Telegram.
   const openButton = {
     reply_markup: { inline_keyboard: [[{ text: "Открыть журнал", web_app: { url: appUrl } }]] },
