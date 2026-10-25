@@ -1,21 +1,10 @@
-import Script from "next/script";
-import { MiniAppLogin } from "@/app/tg/mini-app-login";
-
-export const metadata = { title: "Trading Journal" };
+import { redirect } from "next/navigation";
 
 /**
- * Точка входа Mini App: кнопка «Журнал» в боте открывает эту страницу внутри
- * Telegram. Скрипт Telegram отдаёт подписанные данные пользователя, а мы
- * меняем их на обычную сессию журнала.
+ * Прежний адрес Mini App. Кнопка бота теперь ведёт сразу в журнал
+ * (`/?tgapp=1`), а этот адрес остался для уже разосланных кнопок под
+ * сообщениями. Хеш с данными Telegram браузер при редиректе сохраняет.
  */
 export default function MiniAppPage() {
-  return (
-    <main className="flex min-h-dvh items-center justify-center px-5">
-      <Script src="https://telegram.org/js/telegram-web-app.js" strategy="afterInteractive" />
-      <div className="w-full max-w-[320px]">
-        <h1 className="text-[15px] font-medium tracking-tight">Trading Journal</h1>
-        <MiniAppLogin />
-      </div>
-    </main>
-  );
+  redirect("/?tgapp=1");
 }

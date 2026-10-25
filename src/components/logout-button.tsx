@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { markTelegramManual } from "@/lib/telegram/web-app";
 
 export function LogoutButton({ className }: { className?: string }) {
   const router = useRouter();
@@ -9,6 +10,8 @@ export function LogoutButton({ className }: { className?: string }) {
 
   async function onClick() {
     setPending(true);
+    // Внутри Telegram после выхода не входить снова автоматически.
+    markTelegramManual(true);
     await fetch("/api/logout", { method: "POST" });
     router.replace("/login");
     router.refresh();

@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { LoginForm } from "@/app/login/login-form";
+import { TelegramLogin } from "@/app/login/telegram-login";
 import { setupAvailable } from "@/lib/owner-setup";
 
 export const metadata = { title: "Вход — Trading Journal" };
@@ -24,7 +25,9 @@ export default async function LoginPage({
             </Link>
           </p>
         ) : (
-          <LoginForm from={from} />
+          <TelegramLogin from={from}>
+            <LoginForm from={from} />
+          </TelegramLogin>
         )}
       </div>
     </main>
