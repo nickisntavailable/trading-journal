@@ -1,7 +1,11 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useState } from "react";
+
+const POLL_EVERY_MS = 2_500;
+/** Ссылка живёт 10 минут — дольше ждать незачем. */
+const POLL_FOR_MS = 10 * 60 * 1000;
 
 /**
  * Привязка Telegram к учётке: одноразовая ссылка на бота, человек жмёт
@@ -19,6 +23,27 @@ export function TelegramLink({
   const [url, setUrl] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
+
+  // Пока открыта ссылка на бота — раз в пару секунд спрашиваем, привязался ли
+  // Telegram, и обновляем страницу сами: не нужно жать «обновить».
+  useEffect(() => {
+    if (!url) return;
+    const started = Date.now();
+    const timer = setInterval(async () => {
+      if (Date.now() - started > POLL_FOR_MS) {
+        clearInterval(timer);
+        return;
+      }
+      const response = await fetch("/api/telegram/link").catch(() => null);
+      const data = await response?.json().catch(() => null);
+      if (data?.linked) {
+        clearInterval(timer);
+        setUrl(null);
+        router.refresh();
+      }
+    }, POLL_EVERY_MS);
+    return () => clearInterval(timer);
+  }, [url, router]);
 
   async function createLink() {
     setPending(true);
@@ -84,11 +109,8 @@ export function TelegramLink({
             Открыть бота и нажать Start
           </a>
           <p className="mt-1 text-[11px] text-ink-soft">
-            Ссылка одноразовая, работает 10 минут. После Start в боте —{" "}
-            <button type="button" onClick={() => router.refresh()} className="underline underline-offset-2">
-              обновить
-            </button>
-            .
+            Ссылка одноразовая, работает 10 минут. После Start в боте страница обновится
+            сама.
           </p>
         </div>
       ) : (

@@ -8,11 +8,12 @@ type Status =
       configured: true;
       username: string | null;
       webhook: { url: string; pending_update_count: number; last_error_message?: string } | null;
+      expectedUrl: string | null;
     };
 
 /**
- * Бот журнала: подключён ли он к этому сайту. «Подключить» говорит Telegram,
- * куда слать сообщения боту, — нажимать на проде.
+ * Бот журнала: подключён ли он к сайту. Обычно подключается сам при первой
+ * привязке Telegram; кнопка — ручной запасной путь.
  */
 export function BotSetup() {
   const [status, setStatus] = useState<Status | null>(null);
@@ -58,8 +59,7 @@ export function BotSetup() {
     );
   }
 
-  const here = typeof window !== "undefined" ? `${window.location.origin}/api/telegram/webhook` : "";
-  const connected = status.webhook?.url === here;
+  const connected = Boolean(status.webhook?.url) && status.webhook?.url === status.expectedUrl;
   return (
     <div className="mt-2 text-[13px]">
       <p>
@@ -85,6 +85,9 @@ export function BotSetup() {
       >
         {pending ? "…" : connected ? "Подключить заново" : "Подключить бота"}
       </button>
+      <p className="mt-1 text-[11px] text-ink-soft">
+        Обычно не нужно: бот подключается сам, когда кто-то привязывает Telegram в настройках.
+      </p>
       {error ? <p className="mt-1 text-[12px] text-short">{error}</p> : null}
     </div>
   );
