@@ -304,3 +304,19 @@ model TelegramLinkToken {
 
   @@index([userId])
 }
+
+// Заявка на доступ через бота: незнакомый Telegram пишет /start, админ
+// решает кнопками «Пустить / Отклонить» (в боте или в «Пользователях»).
+model AccessRequest {
+  id          String    @id @default(cuid())
+  telegramId  BigInt    @unique
+  username    String?
+  firstName   String?
+  status      String    @default("pending") // "pending" | "approved" | "rejected"
+  createdAt   DateTime  @default(now())
+  decidedAt   DateTime?
+  decidedById String? // кто решил (id пользователя-админа)
+  userId      String? // учётка, созданная при одобрении
+
+  @@index([status, createdAt])
+}

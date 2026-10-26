@@ -12,6 +12,7 @@ import { accountToDTO } from "@/lib/serialize";
 import { listTags } from "@/lib/tags";
 import { TagsManager } from "@/app/settings/tags-manager";
 import { TelegramLink } from "@/app/settings/telegram-link";
+import { isTelegramEmail } from "@/lib/telegram/access";
 import { botConfigured } from "@/lib/telegram/bot";
 import { describeUserAgent } from "@/lib/security/request-info";
 import { listUserSessions } from "@/lib/session";
@@ -35,6 +36,13 @@ export default async function SettingsPage() {
   });
   const { user, sessions, currentSessionId } = await listUserSessions();
   const tags = await listTags(account.id);
+  // Учётка из бота — без почты и пароля: вход только через Telegram.
+  const hasPassword = Boolean(
+    await prisma.authAccount.findFirst({
+      where: { userId: user.id, providerId: "credential" },
+      select: { id: true },
+    }),
+  );
   const telegram = await prisma.telegramAccount.findUnique({
     where: { userId: user.id },
     select: { username: true, firstName: true },
@@ -106,13 +114,17 @@ export default async function SettingsPage() {
 
       <section className="border-b border-rule py-5">
         <h2 className="text-[12px] text-ink-soft">Telegram</h2>
-        <TelegramLink linked={telegram} configured={botConfigured()} />
+        <TelegramLink linked={telegram} configured={botConfigured()} canUnlink={hasPassword} />
       </section>
 
       <section className="py-5">
         <div className="flex items-baseline justify-between gap-3">
           <h2 className="text-[12px] text-ink-soft">Вход</h2>
-          <span className="truncate text-[13px]">{user.email}</span>
+          <span className="truncate text-[13px]">
+            {isTelegramEmail(user.email)
+              ? `через Telegram${telegram?.username ? ` · @${telegram.username}` : ""}`
+              : user.email}
+          </span>
         </div>
 
         <h3 className="mt-4 text-[11px] text-ink-soft">Устройства</h3>
@@ -138,8 +150,12 @@ export default async function SettingsPage() {
         </div>
         {sessions.length > 1 ? <RevokeSessionsButton /> : null}
 
-        <h3 className="mt-5 text-[11px] text-ink-soft">Сменить пароль</h3>
-        <PasswordForm email={user.email} />
+        {hasPassword ? (
+          <>
+            <h3 className="mt-5 text-[11px] text-ink-soft">Сменить пароль</h3>
+            <PasswordForm email={user.email} />
+          </>
+        ) : null}
 
         <div className="mt-5">
           <LogoutButton className="rounded-[3px] border border-rule bg-white px-3 py-1.5 text-[12px] hover:border-ink disabled:opacity-40" />

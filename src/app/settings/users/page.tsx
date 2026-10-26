@@ -1,7 +1,9 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { AppShell } from "@/components/app-shell";
+import { AccessRequestActions } from "@/app/settings/users/access-request-actions";
 import { BotSetup } from "@/app/settings/users/bot-setup";
+import { isTelegramEmail, requestLabel } from "@/lib/telegram/access";
 import { InviteForm } from "@/app/settings/users/invite-form";
 import { RevokeInviteButton } from "@/app/settings/users/revoke-invite-button";
 import { UserControls } from "@/app/settings/users/user-controls";
@@ -25,9 +27,17 @@ export default async function UsersPage() {
   const session = await getSession();
   if (session?.user.role !== "admin") notFound();
 
-  const [invites, users] = await Promise.all([
+  const [invites, users, requests] = await Promise.all([
     prisma.invite.findMany({ orderBy: { createdAt: "desc" }, take: 50 }),
-    prisma.user.findMany({ orderBy: { createdAt: "asc" } }),
+    prisma.user.findMany({
+      orderBy: { createdAt: "asc" },
+      include: { telegramAccount: { select: { username: true, firstName: true } } },
+    }),
+    prisma.accessRequest.findMany({
+      where: { status: { in: ["pending", "rejected"] } },
+      orderBy: { createdAt: "desc" },
+      take: 50,
+    }),
   ]);
 
   return (
@@ -43,6 +53,33 @@ export default async function UsersPage() {
       <section className="border-b border-rule py-5">
         <h2 className="text-[12px] text-ink-soft">Бот Telegram</h2>
         <BotSetup />
+      </section>
+
+      <section className="border-b border-rule py-5">
+        <h2 className="text-[12px] text-ink-soft">Заявки из бота</h2>
+        {requests.length === 0 ? (
+          <p className="mt-2 text-[13px] text-ink-soft">
+            Новых нет. Чтобы попроситься, человеку достаточно написать боту /start.
+          </p>
+        ) : (
+          <div className="mt-3">
+            {requests.map((request) => (
+              <div
+                key={request.id}
+                className="flex items-baseline justify-between gap-3 border-b border-rule py-2 text-[13px] first:border-t"
+              >
+                <span className="min-w-0">
+                  <span className="block truncate">{requestLabel(request)}</span>
+                  <span className="num block text-[12px] text-ink-soft">
+                    {shortDate(request.createdAt)}
+                    {request.status === "rejected" ? " · отклонена" : ""}
+                  </span>
+                </span>
+                <AccessRequestActions id={request.id} rejected={request.status === "rejected"} />
+              </div>
+            ))}
+          </div>
+        )}
       </section>
 
       <section className="border-b border-rule py-5">
@@ -90,7 +127,11 @@ export default async function UsersPage() {
           {users.map((user) => (
             <div key={user.id} className="border-b border-rule py-2 text-[13px] first:border-t">
               <div className="flex items-baseline justify-between gap-3">
-                <span className="min-w-0 truncate">{user.email}</span>
+                <span className="min-w-0 truncate">
+                  {isTelegramEmail(user.email)
+                    ? `${user.telegramAccount?.username ? `@${user.telegramAccount.username}` : user.name} · Telegram`
+                    : user.email}
+                </span>
                 <span className="num shrink-0 text-[12px] text-ink-soft">
                   {user.role === "admin" ? "админ" : `с ${shortDate(user.createdAt)}`}
                 </span>

@@ -15,9 +15,12 @@ const POLL_FOR_MS = 10 * 60 * 1000;
 export function TelegramLink({
   linked,
   configured,
+  canUnlink,
 }: {
   linked: { username: string | null; firstName: string | null } | null;
   configured: boolean;
+  /** Нет пароля — Telegram единственный вход, отвязывать нельзя. */
+  canUnlink: boolean;
 }) {
   const router = useRouter();
   const [url, setUrl] = useState<string | null>(null);
@@ -83,14 +86,18 @@ export function TelegramLink({
             {linked.username ? `@${linked.username}` : (linked.firstName ?? "")}
           </span>
         </span>
-        <button
-          type="button"
-          onClick={unlink}
-          disabled={pending}
-          className="text-[12px] text-ink-soft underline underline-offset-2 hover:text-ink disabled:opacity-40"
-        >
-          {pending ? "…" : "отвязать"}
-        </button>
+        {canUnlink ? (
+          <button
+            type="button"
+            onClick={unlink}
+            disabled={pending}
+            className="text-[12px] text-ink-soft underline underline-offset-2 hover:text-ink disabled:opacity-40"
+          >
+            {pending ? "…" : "отвязать"}
+          </button>
+        ) : (
+          <span className="text-[12px] text-ink-soft">единственный способ входа</span>
+        )}
         {error ? <p className="w-full text-[12px] text-short">{error}</p> : null}
       </div>
     );

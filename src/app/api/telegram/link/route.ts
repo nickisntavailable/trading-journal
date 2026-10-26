@@ -43,6 +43,17 @@ export async function POST() {
 export async function DELETE() {
   try {
     const user = await requireUser();
+    // Учётка из бота входит только через Telegram — отвязка заперла бы её.
+    const hasPassword = await prisma.authAccount.findFirst({
+      where: { userId: user.id, providerId: "credential" },
+      select: { id: true },
+    });
+    if (!hasPassword) {
+      return NextResponse.json(
+        { error: "Telegram — единственный способ входа в эту учётку, отвязать нельзя" },
+        { status: 400 },
+      );
+    }
     await unlinkTelegram(user.id);
     return NextResponse.json({ ok: true });
   } catch (error) {
